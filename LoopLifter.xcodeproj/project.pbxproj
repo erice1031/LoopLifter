@@ -17,6 +17,10 @@
 		A10000010000000000000008 /* SelfSimilarityAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000008 /* SelfSimilarityAnalyzer.swift */; };
 		A10000010000000000000009 /* NoveltyDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000009 /* NoveltyDetector.swift */; };
 		A10000010000000000000010 /* HitIsolator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000010 /* HitIsolator.swift */; };
+		A10000010000000000000012 /* StemSeparator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000012 /* StemSeparator.swift */; };
+		A10000010000000000000013 /* AubioAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000013 /* AubioAnalyzer.swift */; };
+		A10000010000000000000014 /* AudioFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000014 /* AudioFile.swift */; };
+		A10000010000000000000015 /* QuantizationSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000015 /* QuantizationSettings.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +36,10 @@
 		A20000010000000000000010 /* HitIsolator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HitIsolator.swift; sourceTree = "<group>"; };
 		A30000010000000000000001 /* LoopLifter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LoopLifter.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000010000000000000011 /* LoopLifter.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LoopLifter.entitlements; sourceTree = "<group>"; };
+		A20000010000000000000012 /* StemSeparator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StemSeparator.swift; sourceTree = "<group>"; };
+		A20000010000000000000013 /* AubioAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AubioAnalyzer.swift; sourceTree = "<group>"; };
+		A20000010000000000000014 /* AudioFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioFile.swift; sourceTree = "<group>"; };
+		A20000010000000000000015 /* QuantizationSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuantizationSettings.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +70,7 @@
 				A20000010000000000000011 /* LoopLifter.entitlements */,
 				A50000010000000000000004 /* Views */,
 				A50000010000000000000005 /* Core */,
+				A50000010000000000000010 /* Shared */,
 			);
 			path = LoopLifter;
 			sourceTree = "<group>";
@@ -125,6 +134,17 @@
 			children = (
 			);
 			path = Export;
+			sourceTree = "<group>";
+		};
+		A50000010000000000000010 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000012 /* StemSeparator.swift */,
+				A20000010000000000000013 /* AubioAnalyzer.swift */,
+				A20000010000000000000014 /* AudioFile.swift */,
+				A20000010000000000000015 /* QuantizationSettings.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -205,6 +225,10 @@
 				A10000010000000000000008 /* SelfSimilarityAnalyzer.swift in Sources */,
 				A10000010000000000000009 /* NoveltyDetector.swift in Sources */,
 				A10000010000000000000010 /* HitIsolator.swift in Sources */,
+				A10000010000000000000012 /* StemSeparator.swift in Sources */,
+				A10000010000000000000013 /* AubioAnalyzer.swift in Sources */,
+				A10000010000000000000014 /* AudioFile.swift in Sources */,
+				A10000010000000000000015 /* QuantizationSettings.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

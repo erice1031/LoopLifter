@@ -79,37 +79,4 @@ enum SampleCategory: String, CaseIterable, Codable {
     }
 }
 
-/// Stem types (mirrors LoOptimizer)
-enum StemType: String, CaseIterable, Codable {
-    case drums = "drums"
-    case bass = "bass"
-    case vocals = "vocals"
-    case other = "other"
-
-    var displayName: String {
-        switch self {
-        case .drums: return "Drums"
-        case .bass: return "Bass"
-        case .vocals: return "Vocals"
-        case .other: return "Other"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .drums: return "drum.fill"
-        case .bass: return "guitars.fill"
-        case .vocals: return "mic.fill"
-        case .other: return "pianokeys"
-        }
-    }
-
-    var color: String {
-        switch self {
-        case .drums: return "orange"
-        case .bass: return "purple"
-        case .vocals: return "green"
-        case .other: return "blue"
-        }
-    }
-}
+// Note: StemType is defined in Shared/StemSeparator.swift
