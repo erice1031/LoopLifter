@@ -107,35 +107,107 @@ struct ContentView: View {
     private func analyzeFile(url: URL) async {
         analysisState = .separating(progress: 0)
 
-        // TODO: Implement actual analysis
-        // 1. Separate stems with Demucs
-        // 2. Analyze each stem for loops, hits, phrases
-        // 3. Populate extractedSamples
-
-        // Placeholder: simulate progress
-        for i in 0...10 {
-            try? await Task.sleep(for: .milliseconds(200))
-            analysisState = .separating(progress: Double(i) / 10.0)
-        }
-
-        // Simulate analysis phase
-        let stems = ["Drums", "Bass", "Vocals", "Other"]
-        for (index, stem) in stems.enumerated() {
-            for i in 0...5 {
-                try? await Task.sleep(for: .milliseconds(100))
-                analysisState = .analyzing(stem: stem, progress: Double(i) / 5.0)
+        do {
+            // Check if Demucs is installed
+            guard await StemSeparator.isDemucsInstalled() else {
+                analysisState = .error(StemSeparationError.demucsNotFound.localizedDescription)
+                return
             }
+
+            // Create output directory for stems
+            let outputDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("LoopLifter")
+                .appendingPathComponent(UUID().uuidString)
+
+            try FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
+
+            // Separate stems with Demucs
+            let stemURLs = try await StemSeparator.separate(
+                audioURL: url,
+                outputDir: outputDir,
+                model: .htdemucs
+            ) { progress in
+                Task { @MainActor in
+                    self.analysisState = .separating(progress: progress)
+                }
+            }
+
+            // Analyze each stem
+            var allSamples: [ExtractedSample] = []
+            let stemTypes = Array(stemURLs.keys).sorted { $0.rawValue < $1.rawValue }
+
+            for (index, stemType) in stemTypes.enumerated() {
+                guard let stemURL = stemURLs[stemType] else { continue }
+
+                let stemProgress = Double(index) / Double(stemTypes.count)
+                analysisState = .analyzing(stem: stemType.displayName, progress: stemProgress)
+
+                // Detect tempo and onsets using Aubio
+                let tempo = try await AubioAnalyzer.detectTempo(in: stemURL)
+                let onsets = try await AubioAnalyzer.detectOnsets(in: stemURL)
+
+                // Load audio to get duration
+                let audioFile = try AudioFile(url: stemURL)
+                try await Task.sleep(for: .milliseconds(100)) // Let duration load
+                let duration = audioFile.duration > 0 ? audioFile.duration : 30.0
+
+                // Find isolated hits
+                let hits = HitIsolator.findIsolatedHits(
+                    onsets: onsets,
+                    duration: duration
+                )
+
+                // Create samples from hits
+                for (hitIndex, hit) in hits.prefix(8).enumerated() {
+                    var sample = ExtractedSample(
+                        name: "\(stemType.displayName) Hit \(hitIndex + 1)",
+                        category: .hit,
+                        stemType: stemType,
+                        duration: hit.duration,
+                        barLength: nil,
+                        confidence: 0.8
+                    )
+                    sample.startTime = hit.startTime
+                    sample.endTime = hit.startTime + hit.duration
+                    sample.audioURL = stemURL
+                    allSamples.append(sample)
+                }
+
+                // Create loop samples based on onset density
+                if onsets.count > 4 {
+                    let secondsPerBeat = 60.0 / tempo
+                    let secondsPerBar = secondsPerBeat * 4
+
+                    // Try to find 2-bar loop
+                    let twoBarDuration = secondsPerBar * 2
+                    if duration >= twoBarDuration {
+                        var sample = ExtractedSample(
+                            name: "\(stemType.displayName) Loop",
+                            category: .loop,
+                            stemType: stemType,
+                            duration: twoBarDuration,
+                            barLength: 2,
+                            confidence: 0.85
+                        )
+                        sample.startTime = 0
+                        sample.endTime = twoBarDuration
+                        sample.audioURL = stemURL
+                        allSamples.append(sample)
+                    }
+                }
+
+                analysisState = .analyzing(
+                    stem: stemType.displayName,
+                    progress: Double(index + 1) / Double(stemTypes.count)
+                )
+            }
+
+            extractedSamples = allSamples
+            analysisState = .complete
+
+        } catch {
+            analysisState = .error(error.localizedDescription)
         }
-
-        // Placeholder samples
-        extractedSamples = [
-            ExtractedSample(name: "Main Loop", category: .loop, stemType: .drums, duration: 2.0, barLength: 2, confidence: 0.95),
-            ExtractedSample(name: "Fill 1", category: .fill, stemType: .drums, duration: 0.5, barLength: nil, confidence: 0.82),
-            ExtractedSample(name: "Kick", category: .hit, stemType: .drums, duration: 0.1, barLength: nil, confidence: 0.98),
-            ExtractedSample(name: "Snare", category: .hit, stemType: .drums, duration: 0.15, barLength: nil, confidence: 0.96),
-        ]
-
-        analysisState = .complete
     }
 
     private func exportSamples(_ samples: [ExtractedSample]) {
