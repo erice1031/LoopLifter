@@ -112,7 +112,12 @@ LoopLifter/
 ## Roadmap
 
 - [x] Project setup and architecture
-- [ ] Drum loop detection MVP
+- [x] Shared code ported from LoOptimizer (Demucs, Aubio)
+- [x] Core analysis modules (SelfSimilarity, Novelty, HitIsolator)
+- [x] UI foundation (DropZone, Results, Settings views)
+- [x] Real Demucs stem separation integration
+- [x] Analysis pipeline with progress tracking
+- [ ] Full self-similarity matrix loop detection
 - [ ] Bass riff detection
 - [ ] Vocal phrase detection
 - [ ] WAV export with metadata
