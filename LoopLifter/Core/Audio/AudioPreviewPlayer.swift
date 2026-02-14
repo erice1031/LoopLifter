@@ -2,7 +2,7 @@
 //  AudioPreviewPlayer.swift
 //  LoopLifter
 //
-//  Simple audio player for sample preview
+//  Audio player for sample preview using AVAudioEngine for precise seeking
 //
 
 import Foundation
@@ -13,7 +13,9 @@ import AVFoundation
 class AudioPreviewPlayer {
     static let shared = AudioPreviewPlayer()
 
-    private var audioPlayer: AVAudioPlayer?
+    private var audioEngine: AVAudioEngine?
+    private var playerNode: AVAudioPlayerNode?
+    private var audioFile: AVAudioFile?
     private var playTimer: Timer?
 
     var isPlaying: Bool = false
@@ -35,33 +37,65 @@ class AudioPreviewPlayer {
         print("   Time: \(sample.startTime)s - \(sample.endTime)s")
 
         do {
-            audioPlayer = try AVAudioPlayer(contentsOf: url)
-            audioPlayer?.prepareToPlay()
+            // Load audio file
+            audioFile = try AVAudioFile(forReading: url)
+            guard let audioFile = audioFile else { return }
 
-            print("   Audio duration: \(audioPlayer?.duration ?? 0)s")
+            let sampleRate = audioFile.processingFormat.sampleRate
+            let totalFrames = AVAudioFrameCount(audioFile.length)
+            let audioDuration = Double(totalFrames) / sampleRate
 
-            // Validate start time is within bounds
-            let audioDuration = audioPlayer?.duration ?? 0
-            var startTime = sample.startTime
-            if startTime >= audioDuration {
-                print("   ⚠️ Start time beyond audio, playing from 0")
-                startTime = 0
+            print("   Audio duration: \(audioDuration)s, Sample rate: \(sampleRate)")
+
+            // Calculate frame positions
+            var startFrame = AVAudioFramePosition(sample.startTime * sampleRate)
+            let endFrame = AVAudioFramePosition(min(sample.endTime, audioDuration) * sampleRate)
+
+            // Validate
+            if startFrame >= audioFile.length {
+                print("   ⚠️ Start frame beyond audio, playing from 0")
+                startFrame = 0
             }
 
-            // Set start position
-            audioPlayer?.currentTime = startTime
-            audioPlayer?.play()
+            let frameCount = AVAudioFrameCount(endFrame - startFrame)
+            guard frameCount > 0 else {
+                print("   ⚠️ Invalid frame count")
+                return
+            }
+
+            print("   Frames: \(startFrame) to \(endFrame) (\(frameCount) frames)")
+
+            // Set up audio engine
+            audioEngine = AVAudioEngine()
+            playerNode = AVAudioPlayerNode()
+
+            guard let engine = audioEngine, let player = playerNode else { return }
+
+            engine.attach(player)
+            engine.connect(player, to: engine.mainMixerNode, format: audioFile.processingFormat)
+
+            try engine.start()
+
+            // Schedule playback from specific position
+            player.scheduleSegment(
+                audioFile,
+                startingFrame: startFrame,
+                frameCount: frameCount,
+                at: nil
+            )
+
+            player.play()
 
             isPlaying = true
             currentSampleID = sample.id
 
-            // Schedule stop at end time
-            let playDuration = min(sample.endTime - sample.startTime, audioDuration - startTime)
-            playTimer = Timer.scheduledTimer(withTimeInterval: max(playDuration, 0.1), repeats: false) { [weak self] _ in
+            // Schedule stop
+            let playDuration = Double(frameCount) / sampleRate
+            playTimer = Timer.scheduledTimer(withTimeInterval: playDuration + 0.05, repeats: false) { [weak self] _ in
                 self?.stop()
             }
 
-            print("   ▶️ Playing from \(startTime)s for \(playDuration)s")
+            print("   ▶️ Playing \(frameCount) frames (\(String(format: "%.3f", playDuration))s)")
 
         } catch {
             print("❌ Failed to play sample: \(error.localizedDescription)")
@@ -72,8 +106,14 @@ class AudioPreviewPlayer {
     func stop() {
         playTimer?.invalidate()
         playTimer = nil
-        audioPlayer?.stop()
-        audioPlayer = nil
+
+        playerNode?.stop()
+        audioEngine?.stop()
+
+        playerNode = nil
+        audioEngine = nil
+        audioFile = nil
+
         isPlaying = false
         currentSampleID = nil
     }
