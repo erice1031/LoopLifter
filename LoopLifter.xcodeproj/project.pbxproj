@@ -21,6 +21,7 @@
 		A10000010000000000000013 /* AubioAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000013 /* AubioAnalyzer.swift */; };
 		A10000010000000000000014 /* AudioFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000014 /* AudioFile.swift */; };
 		A10000010000000000000015 /* QuantizationSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000015 /* QuantizationSettings.swift */; };
+		A10000010000000000000016 /* AudioPreviewPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000016 /* AudioPreviewPlayer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -40,6 +41,7 @@
 		A20000010000000000000013 /* AubioAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AubioAnalyzer.swift; sourceTree = "<group>"; };
 		A20000010000000000000014 /* AudioFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioFile.swift; sourceTree = "<group>"; };
 		A20000010000000000000015 /* QuantizationSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuantizationSettings.swift; sourceTree = "<group>"; };
+		A20000010000000000000016 /* AudioPreviewPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPreviewPlayer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -98,10 +100,19 @@
 			children = (
 				A50000010000000000000006 /* Models */,
 				A50000010000000000000007 /* Analysis */,
+				A50000010000000000000011 /* Audio */,
 				A50000010000000000000008 /* Extraction */,
 				A50000010000000000000009 /* Export */,
 			);
 			path = Core;
+			sourceTree = "<group>";
+		};
+		A50000010000000000000011 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000016 /* AudioPreviewPlayer.swift */,
+			);
+			path = Audio;
 			sourceTree = "<group>";
 		};
 		A50000010000000000000006 /* Models */ = {
@@ -229,6 +240,7 @@
 				A10000010000000000000013 /* AubioAnalyzer.swift in Sources */,
 				A10000010000000000000014 /* AudioFile.swift in Sources */,
 				A10000010000000000000015 /* QuantizationSettings.swift in Sources */,
+				A10000010000000000000016 /* AudioPreviewPlayer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

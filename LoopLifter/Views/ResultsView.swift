@@ -176,7 +176,7 @@ struct SampleCard: View {
     var onToggle: () -> Void
 
     @State private var isHovering = false
-    @State private var isPlaying = false
+    private var player = AudioPreviewPlayer.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -193,10 +193,13 @@ struct SampleCard: View {
 
                 // Play button
                 Button {
-                    isPlaying.toggle()
-                    // TODO: Implement preview playback
+                    if player.isPlaying(sample: sample) {
+                        player.stop()
+                    } else {
+                        player.play(sample: sample)
+                    }
                 } label: {
-                    Image(systemName: isPlaying ? "stop.fill" : "play.fill")
+                    Image(systemName: player.isPlaying(sample: sample) ? "stop.fill" : "play.fill")
                         .font(.caption)
                 }
                 .buttonStyle(.plain)
