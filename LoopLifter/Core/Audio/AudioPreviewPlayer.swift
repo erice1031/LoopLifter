@@ -13,15 +13,25 @@ import AVFoundation
 class AudioPreviewPlayer {
     static let shared = AudioPreviewPlayer()
 
-    private var audioEngine: AVAudioEngine?
-    private var playerNode: AVAudioPlayerNode?
-    private var audioFile: AVAudioFile?
+    private let audioEngine = AVAudioEngine()
+    private let playerNode = AVAudioPlayerNode()
+    private var currentFile: AVAudioFile?
     private var playTimer: Timer?
+    private var isEngineSetup = false
 
     var isPlaying: Bool = false
     var currentSampleID: UUID?
 
-    private init() {}
+    private init() {
+        setupEngine()
+    }
+
+    private func setupEngine() {
+        audioEngine.attach(playerNode)
+        playerNode.volume = 2.0  // Boost for quiet stems
+        isEngineSetup = true
+        print("🔊 Audio engine initialized")
+    }
 
     /// Play a sample from its audio URL and time range
     func play(sample: ExtractedSample) {
@@ -38,8 +48,8 @@ class AudioPreviewPlayer {
 
         do {
             // Load audio file
-            audioFile = try AVAudioFile(forReading: url)
-            guard let audioFile = audioFile else { return }
+            let audioFile = try AVAudioFile(forReading: url)
+            currentFile = audioFile
 
             let sampleRate = audioFile.processingFormat.sampleRate
             let totalFrames = AVAudioFrameCount(audioFile.length)
@@ -65,26 +75,28 @@ class AudioPreviewPlayer {
 
             print("   Frames: \(startFrame) to \(endFrame) (\(frameCount) frames)")
 
-            // Set up audio engine
-            audioEngine = AVAudioEngine()
-            playerNode = AVAudioPlayerNode()
+            // Reconnect player to engine with correct format for this file
+            if audioEngine.isRunning {
+                audioEngine.stop()
+            }
 
-            guard let engine = audioEngine, let player = playerNode else { return }
+            // Disconnect and reconnect with new format
+            audioEngine.disconnectNodeOutput(playerNode)
+            audioEngine.connect(playerNode, to: audioEngine.mainMixerNode, format: audioFile.processingFormat)
 
-            engine.attach(player)
-            engine.connect(player, to: engine.mainMixerNode, format: audioFile.processingFormat)
+            try audioEngine.start()
 
-            try engine.start()
+            print("   Engine running: \(audioEngine.isRunning), Format: \(audioFile.processingFormat)")
 
             // Schedule playback from specific position
-            player.scheduleSegment(
+            playerNode.scheduleSegment(
                 audioFile,
                 startingFrame: startFrame,
                 frameCount: frameCount,
                 at: nil
             )
 
-            player.play()
+            playerNode.play()
 
             isPlaying = true
             currentSampleID = sample.id
@@ -107,13 +119,10 @@ class AudioPreviewPlayer {
         playTimer?.invalidate()
         playTimer = nil
 
-        playerNode?.stop()
-        audioEngine?.stop()
+        playerNode.stop()
+        // Don't stop the engine, just the player
 
-        playerNode = nil
-        audioEngine = nil
-        audioFile = nil
-
+        currentFile = nil
         isPlaying = false
         currentSampleID = nil
     }
