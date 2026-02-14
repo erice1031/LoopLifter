@@ -117,6 +117,7 @@ LoopLifter/
 - [x] UI foundation (DropZone, Results, Settings views)
 - [x] Real Demucs stem separation integration
 - [x] Analysis pipeline with progress tracking
+- [x] Audio preview playback (play/stop per sample)
 - [ ] Full self-similarity matrix loop detection
 - [ ] Bass riff detection
 - [ ] Vocal phrase detection
