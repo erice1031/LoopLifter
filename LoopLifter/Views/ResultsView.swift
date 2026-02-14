@@ -176,7 +176,7 @@ struct SampleCard: View {
     var onToggle: () -> Void
 
     @State private var isHovering = false
-    private var player = AudioPreviewPlayer.shared
+    var player: AudioPreviewPlayer { AudioPreviewPlayer.shared }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -278,3 +278,4 @@ struct SampleCard: View {
         onOpenInLoOptimizer: { }
     )
 }
+

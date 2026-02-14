@@ -151,24 +151,24 @@ struct ContentView: View {
                 try await Task.sleep(for: .milliseconds(100)) // Let duration load
                 let duration = audioFile.duration > 0 ? audioFile.duration : 30.0
 
-                // Find isolated hits
-                let hits = HitIsolator.findIsolatedHits(
-                    onsets: onsets,
-                    duration: duration
-                )
+                // Create hit samples from onset times directly
+                // Use first 8 onsets as individual hits
+                let sortedOnsets = onsets.sorted()
+                for (hitIndex, onset) in sortedOnsets.prefix(8).enumerated() {
+                    // Calculate hit duration (until next onset or max 500ms)
+                    let nextOnset = hitIndex + 1 < sortedOnsets.count ? sortedOnsets[hitIndex + 1] : onset + 0.5
+                    let hitDuration = min(nextOnset - onset, 0.5)
 
-                // Create samples from hits
-                for (hitIndex, hit) in hits.prefix(8).enumerated() {
                     var sample = ExtractedSample(
                         name: "\(stemType.displayName) Hit \(hitIndex + 1)",
                         category: .hit,
                         stemType: stemType,
-                        duration: hit.duration,
+                        duration: hitDuration,
                         barLength: nil,
                         confidence: 0.8
                     )
-                    sample.startTime = hit.startTime
-                    sample.endTime = hit.startTime + hit.duration
+                    sample.startTime = onset
+                    sample.endTime = onset + hitDuration
                     sample.audioURL = stemURL
                     allSamples.append(sample)
                 }
