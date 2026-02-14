@@ -101,14 +101,17 @@ struct AubioAnalyzer {
 
     /// Detect tempo using aubio
     static func detectTempo(in audioURL: URL) async throws -> Double {
-        let aubioPath = try findAubioTool().replacingOccurrences(of: "aubioonset", with: "aubiotempo")
+        // Use "aubio tempo" command (newer aubio versions)
+        let aubioPath = try findAubioTool().replacingOccurrences(of: "aubioonset", with: "aubio")
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: aubioPath)
-        process.arguments = ["-i", audioURL.path]
+        process.arguments = ["tempo", "-i", audioURL.path]
 
         let outputPipe = Pipe()
+        let errorPipe = Pipe()
         process.standardOutput = outputPipe
+        process.standardError = errorPipe
 
         try process.run()
         process.waitUntilExit()
@@ -119,7 +122,15 @@ struct AubioAnalyzer {
         }
 
         // Parse tempo from output
-        // Format is typically: "tempo: XXX.XX"
+        // Format is: "XXX.XX bpm"
+        if let tempoMatch = outputString.range(of: #"[\d.]+(?=\s*bpm)"#, options: .regularExpression) {
+            let tempoString = String(outputString[tempoMatch])
+            if let tempo = Double(tempoString) {
+                return tempo
+            }
+        }
+
+        // Fallback: try to find any number
         if let tempoMatch = outputString.range(of: #"\d+\.?\d*"#, options: .regularExpression) {
             let tempoString = String(outputString[tempoMatch])
             if let tempo = Double(tempoString) {
