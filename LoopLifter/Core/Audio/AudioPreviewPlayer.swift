@@ -30,24 +30,38 @@ class AudioPreviewPlayer {
             return
         }
 
+        print("🎵 Sample: \(sample.name)")
+        print("   URL: \(url.lastPathComponent)")
+        print("   Time: \(sample.startTime)s - \(sample.endTime)s")
+
         do {
             audioPlayer = try AVAudioPlayer(contentsOf: url)
             audioPlayer?.prepareToPlay()
 
+            print("   Audio duration: \(audioPlayer?.duration ?? 0)s")
+
+            // Validate start time is within bounds
+            let audioDuration = audioPlayer?.duration ?? 0
+            var startTime = sample.startTime
+            if startTime >= audioDuration {
+                print("   ⚠️ Start time beyond audio, playing from 0")
+                startTime = 0
+            }
+
             // Set start position
-            audioPlayer?.currentTime = sample.startTime
+            audioPlayer?.currentTime = startTime
             audioPlayer?.play()
 
             isPlaying = true
             currentSampleID = sample.id
 
             // Schedule stop at end time
-            let duration = sample.endTime - sample.startTime
-            playTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
+            let playDuration = min(sample.endTime - sample.startTime, audioDuration - startTime)
+            playTimer = Timer.scheduledTimer(withTimeInterval: max(playDuration, 0.1), repeats: false) { [weak self] _ in
                 self?.stop()
             }
 
-            print("▶️ Playing: \(sample.name) (\(sample.startTime)s - \(sample.endTime)s)")
+            print("   ▶️ Playing from \(startTime)s for \(playDuration)s")
 
         } catch {
             print("❌ Failed to play sample: \(error.localizedDescription)")

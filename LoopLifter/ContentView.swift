@@ -143,8 +143,10 @@ struct ContentView: View {
                 analysisState = .analyzing(stem: stemType.displayName, progress: stemProgress)
 
                 // Detect tempo and onsets using Aubio
+                print("🔍 Analyzing \(stemType.displayName): \(stemURL.lastPathComponent)")
                 let tempo = try await AubioAnalyzer.detectTempo(in: stemURL)
                 let onsets = try await AubioAnalyzer.detectOnsets(in: stemURL)
+                print("   Tempo: \(tempo) BPM, Onsets: \(onsets.count)")
 
                 // Load audio to get duration
                 let audioFile = try AudioFile(url: stemURL)
@@ -154,6 +156,7 @@ struct ContentView: View {
                 // Create hit samples from onset times directly
                 // Use first 8 onsets as individual hits
                 let sortedOnsets = onsets.sorted()
+                print("   First 8 onsets: \(sortedOnsets.prefix(8).map { String(format: "%.2f", $0) })")
                 for (hitIndex, onset) in sortedOnsets.prefix(8).enumerated() {
                     // Calculate hit duration (until next onset or max 500ms)
                     let nextOnset = hitIndex + 1 < sortedOnsets.count ? sortedOnsets[hitIndex + 1] : onset + 0.5
@@ -172,6 +175,7 @@ struct ContentView: View {
                     sample.audioURL = stemURL
                     allSamples.append(sample)
                 }
+                print("   Created \(min(8, sortedOnsets.count)) hits for \(stemURL.lastPathComponent)")
 
                 // Create loop samples based on onset density
                 if onsets.count > 4 {
