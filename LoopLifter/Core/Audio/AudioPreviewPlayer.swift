@@ -88,14 +88,15 @@ class AudioPreviewPlayer {
 
             print("   Engine running: \(audioEngine.isRunning), Format: \(audioFile.processingFormat)")
 
-            // Schedule playback from specific position
-            playerNode.scheduleSegment(
-                audioFile,
-                startingFrame: startFrame,
-                frameCount: frameCount,
-                at: nil
-            )
+            // Read the specific segment into a buffer first (more reliable for large files)
+            audioFile.framePosition = startFrame
+            let buffer = AVAudioPCMBuffer(pcmFormat: audioFile.processingFormat, frameCapacity: frameCount)!
+            try audioFile.read(into: buffer, frameCount: frameCount)
 
+            print("   Buffer: \(buffer.frameLength) frames loaded")
+
+            // Schedule the buffer
+            playerNode.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
             playerNode.play()
 
             isPlaying = true
