@@ -21,8 +21,8 @@ struct AubioAnalyzer {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: aubioPath)
         process.arguments = [
-            "-i", audioURL.path,
-            "-O", "txt"  // Output format: text
+            "-i", audioURL.path
+            // Output is text by default (onset times in seconds)
         ]
 
         let outputPipe = Pipe()
