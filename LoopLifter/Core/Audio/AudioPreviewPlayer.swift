@@ -93,15 +93,34 @@ class AudioPreviewPlayer {
             let buffer = AVAudioPCMBuffer(pcmFormat: audioFile.processingFormat, frameCapacity: frameCount)!
             try audioFile.read(into: buffer, frameCount: frameCount)
 
-            // Check if buffer has actual audio content
+            // Check buffer peak and apply gain normalization
             var maxSample: Float = 0
             if let channelData = buffer.floatChannelData {
-                for i in 0..<Int(buffer.frameLength) {
-                    let sample = abs(channelData[0][i])
-                    if sample > maxSample { maxSample = sample }
+                let frameCount = Int(buffer.frameLength)
+                let channelCount = Int(buffer.format.channelCount)
+
+                // Find peak across all channels
+                for ch in 0..<channelCount {
+                    for i in 0..<frameCount {
+                        let sample = abs(channelData[ch][i])
+                        if sample > maxSample { maxSample = sample }
+                    }
+                }
+
+                // Normalize quiet audio (target peak of 0.8)
+                if maxSample > 0 && maxSample < 0.1 {
+                    let gain = min(0.8 / maxSample, 100.0)  // Cap at 100x gain
+                    print("   Buffer: \(buffer.frameLength) frames, peak: \(String(format: "%.4f", maxSample)), applying \(String(format: "%.1f", gain))x gain")
+
+                    for ch in 0..<channelCount {
+                        for i in 0..<frameCount {
+                            channelData[ch][i] *= gain
+                        }
+                    }
+                } else {
+                    print("   Buffer: \(buffer.frameLength) frames, peak: \(String(format: "%.4f", maxSample))")
                 }
             }
-            print("   Buffer: \(buffer.frameLength) frames, peak: \(String(format: "%.4f", maxSample))")
 
             // Schedule the buffer
             playerNode.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
