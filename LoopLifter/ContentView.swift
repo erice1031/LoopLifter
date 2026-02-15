@@ -7,6 +7,58 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+import AVFoundation
+
+/// Find when a stem actually has significant audio content (energy onset)
+/// Returns the time in seconds where audio first exceeds the threshold
+func findEnergyOnset(in url: URL, threshold: Float = 0.05, chunkDuration: Double = 0.5) -> Double {
+    do {
+        let audioFile = try AVAudioFile(forReading: url)
+        let sampleRate = audioFile.processingFormat.sampleRate
+        let totalFrames = AVAudioFrameCount(audioFile.length)
+        let chunkFrames = AVAudioFrameCount(chunkDuration * sampleRate)
+
+        var currentFrame: AVAudioFramePosition = 0
+
+        while currentFrame < totalFrames {
+            let framesToRead = min(chunkFrames, AVAudioFrameCount(totalFrames - AVAudioFrameCount(currentFrame)))
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: audioFile.processingFormat, frameCapacity: framesToRead) else {
+                break
+            }
+
+            audioFile.framePosition = currentFrame
+            try audioFile.read(into: buffer, frameCount: framesToRead)
+
+            // Find peak in this chunk
+            var maxSample: Float = 0
+            if let channelData = buffer.floatChannelData {
+                let frameCount = Int(buffer.frameLength)
+                let channelCount = Int(buffer.format.channelCount)
+
+                for ch in 0..<channelCount {
+                    for i in 0..<frameCount {
+                        let sample = abs(channelData[ch][i])
+                        if sample > maxSample { maxSample = sample }
+                    }
+                }
+            }
+
+            // If this chunk exceeds threshold, return this time
+            if maxSample >= threshold {
+                let timeSeconds = Double(currentFrame) / sampleRate
+                return timeSeconds
+            }
+
+            currentFrame += AVAudioFramePosition(framesToRead)
+        }
+
+        // No significant content found, return 0
+        return 0
+    } catch {
+        print("⚠️ Error finding energy onset: \(error)")
+        return 0
+    }
+}
 
 struct ContentView: View {
     @State private var analysisState: AnalysisState = .idle
@@ -153,10 +205,13 @@ struct ContentView: View {
                 try await Task.sleep(for: .milliseconds(100)) // Let duration load
                 let duration = audioFile.duration > 0 ? audioFile.duration : 30.0
 
-                // Create hit samples from onset times directly
-                // Use first 8 onsets as individual hits
-                let sortedOnsets = onsets.sorted()
-                print("   First 8 onsets: \(sortedOnsets.prefix(8).map { String(format: "%.2f", $0) })")
+                // Find where this stem actually has significant audio content
+                let energyOnset = findEnergyOnset(in: stemURL, threshold: 0.05)
+                print("   Energy onset: \(String(format: "%.2f", energyOnset))s")
+
+                // Filter onsets to only those after energy onset
+                let sortedOnsets = onsets.sorted().filter { $0 >= energyOnset }
+                print("   Onsets after energy: \(sortedOnsets.count), first 8: \(sortedOnsets.prefix(8).map { String(format: "%.2f", $0) })")
                 for (hitIndex, onset) in sortedOnsets.prefix(8).enumerated() {
                     // Calculate hit duration (until next onset or max 500ms)
                     let nextOnset = hitIndex + 1 < sortedOnsets.count ? sortedOnsets[hitIndex + 1] : onset + 0.5
@@ -178,13 +233,17 @@ struct ContentView: View {
                 print("   Created \(min(8, sortedOnsets.count)) hits for \(stemURL.lastPathComponent)")
 
                 // Create loop samples based on onset density
-                if onsets.count > 4 {
+                // Start loop from energy onset (where stem actually kicks in)
+                if sortedOnsets.count > 4 {
                     let secondsPerBeat = 60.0 / tempo
                     let secondsPerBar = secondsPerBeat * 4
 
-                    // Try to find 2-bar loop
+                    // Quantize energy onset to nearest beat for cleaner loop start
+                    let quantizedStart = round(energyOnset / secondsPerBeat) * secondsPerBeat
+
+                    // Try to find 2-bar loop starting from where the stem kicks in
                     let twoBarDuration = secondsPerBar * 2
-                    if duration >= twoBarDuration {
+                    if duration >= quantizedStart + twoBarDuration {
                         var sample = ExtractedSample(
                             name: "\(stemType.displayName) Loop",
                             category: .loop,
@@ -193,10 +252,11 @@ struct ContentView: View {
                             barLength: 2,
                             confidence: 0.85
                         )
-                        sample.startTime = 0
-                        sample.endTime = twoBarDuration
+                        sample.startTime = quantizedStart
+                        sample.endTime = quantizedStart + twoBarDuration
                         sample.audioURL = stemURL
                         allSamples.append(sample)
+                        print("   Loop: \(String(format: "%.2f", quantizedStart))s - \(String(format: "%.2f", quantizedStart + twoBarDuration))s")
                     }
                 }
 
