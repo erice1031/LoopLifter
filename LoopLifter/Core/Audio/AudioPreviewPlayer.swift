@@ -107,9 +107,10 @@ class AudioPreviewPlayer {
                     }
                 }
 
-                // Normalize quiet audio (target peak of 0.8)
-                if maxSample > 0 && maxSample < 0.1 {
-                    let gain = min(0.8 / maxSample, 100.0)  // Cap at 100x gain
+                // Normalize very quiet audio (target peak of 0.5, conservative boost)
+                // Only boost if peak is very low, and cap gain to prevent clipping
+                if maxSample > 0 && maxSample < 0.05 {
+                    let gain = min(0.5 / maxSample, 10.0)  // Cap at 10x gain (~20dB)
                     print("   Buffer: \(buffer.frameLength) frames, peak: \(String(format: "%.4f", maxSample)), applying \(String(format: "%.1f", gain))x gain")
 
                     for ch in 0..<channelCount {

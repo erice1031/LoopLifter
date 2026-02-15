@@ -9,9 +9,9 @@ import SwiftUI
 import UniformTypeIdentifiers
 import AVFoundation
 
-/// Find when a stem actually has significant audio content (energy onset)
-/// Returns the time in seconds where audio first exceeds the threshold
-func findEnergyOnset(in url: URL, threshold: Float = 0.05, chunkDuration: Double = 0.5) -> Double {
+/// Find when a stem actually has sustained significant audio content
+/// Requires multiple consecutive chunks above threshold to avoid false positives from isolated transients
+func findEnergyOnset(in url: URL, threshold: Float = 0.12, chunkDuration: Double = 0.25, requiredConsecutive: Int = 3) -> Double {
     do {
         let audioFile = try AVAudioFile(forReading: url)
         let sampleRate = audioFile.processingFormat.sampleRate
@@ -19,6 +19,8 @@ func findEnergyOnset(in url: URL, threshold: Float = 0.05, chunkDuration: Double
         let chunkFrames = AVAudioFrameCount(chunkDuration * sampleRate)
 
         var currentFrame: AVAudioFramePosition = 0
+        var consecutiveAboveThreshold = 0
+        var firstAboveThresholdFrame: AVAudioFramePosition = 0
 
         while currentFrame < totalFrames {
             let framesToRead = min(chunkFrames, AVAudioFrameCount(totalFrames - AVAudioFrameCount(currentFrame)))
@@ -43,16 +45,27 @@ func findEnergyOnset(in url: URL, threshold: Float = 0.05, chunkDuration: Double
                 }
             }
 
-            // If this chunk exceeds threshold, return this time
+            // Track consecutive chunks above threshold
             if maxSample >= threshold {
-                let timeSeconds = Double(currentFrame) / sampleRate
-                return timeSeconds
+                if consecutiveAboveThreshold == 0 {
+                    firstAboveThresholdFrame = currentFrame
+                }
+                consecutiveAboveThreshold += 1
+
+                // Found sustained energy
+                if consecutiveAboveThreshold >= requiredConsecutive {
+                    let timeSeconds = Double(firstAboveThresholdFrame) / sampleRate
+                    return timeSeconds
+                }
+            } else {
+                // Reset if we drop below threshold
+                consecutiveAboveThreshold = 0
             }
 
             currentFrame += AVAudioFramePosition(framesToRead)
         }
 
-        // No significant content found, return 0
+        // No sustained content found, return 0
         return 0
     } catch {
         print("⚠️ Error finding energy onset: \(error)")
