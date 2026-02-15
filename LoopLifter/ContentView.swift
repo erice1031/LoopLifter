@@ -220,8 +220,8 @@ struct ContentView: View {
                 try await Task.sleep(for: .milliseconds(100)) // Let duration load
                 let duration = audioFile.duration > 0 ? audioFile.duration : 30.0
 
-                // Find where this stem actually has significant audio content
-                let energyOnset = findEnergyOnset(in: stemURL, threshold: 0.05)
+                // Find the loudest section of this stem (main groove)
+                let energyOnset = findEnergyOnset(in: stemURL)
                 print("   Energy onset: \(String(format: "%.2f", energyOnset))s")
 
                 // Filter onsets to only those after energy onset
@@ -229,8 +229,8 @@ struct ContentView: View {
                 print("   Onsets after energy: \(sortedOnsets.count), first 8: \(sortedOnsets.prefix(8).map { String(format: "%.2f", $0) })")
                 for (hitIndex, onset) in sortedOnsets.prefix(8).enumerated() {
                     // Calculate hit duration (until next onset or max 500ms)
-                    let nextOnset = hitIndex + 1 < sortedOnsets.count ? sortedOnsets[hitIndex + 1] : onset + 0.5
-                    let hitDuration = min(nextOnset - onset, 0.5)
+                    let nextOnset: Double = hitIndex + 1 < sortedOnsets.count ? sortedOnsets[hitIndex + 1] : onset + 0.5
+                    let hitDuration: Double = Swift.min(nextOnset - onset, 0.5)
 
                     var sample = ExtractedSample(
                         name: "\(stemType.displayName) Hit \(hitIndex + 1)",
