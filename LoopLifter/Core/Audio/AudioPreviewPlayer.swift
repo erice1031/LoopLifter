@@ -93,7 +93,15 @@ class AudioPreviewPlayer {
             let buffer = AVAudioPCMBuffer(pcmFormat: audioFile.processingFormat, frameCapacity: frameCount)!
             try audioFile.read(into: buffer, frameCount: frameCount)
 
-            print("   Buffer: \(buffer.frameLength) frames loaded")
+            // Check if buffer has actual audio content
+            var maxSample: Float = 0
+            if let channelData = buffer.floatChannelData {
+                for i in 0..<Int(buffer.frameLength) {
+                    let sample = abs(channelData[0][i])
+                    if sample > maxSample { maxSample = sample }
+                }
+            }
+            print("   Buffer: \(buffer.frameLength) frames, peak: \(String(format: "%.4f", maxSample))")
 
             // Schedule the buffer
             playerNode.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
