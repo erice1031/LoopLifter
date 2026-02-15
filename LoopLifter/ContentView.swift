@@ -9,19 +9,20 @@ import SwiftUI
 import UniformTypeIdentifiers
 import AVFoundation
 
-/// Find when a stem actually has sustained significant audio content
-/// Requires multiple consecutive chunks above threshold to avoid false positives from isolated transients
-func findEnergyOnset(in url: URL, threshold: Float = 0.12, chunkDuration: Double = 0.25, requiredConsecutive: Int = 3) -> Double {
+/// Find the loudest sustained section of a stem (the "main" section)
+/// Scans entire file and returns the start time of the section with highest average energy
+func findEnergyOnset(in url: URL, windowDuration: Double = 4.0, chunkDuration: Double = 0.25) -> Double {
     do {
         let audioFile = try AVAudioFile(forReading: url)
         let sampleRate = audioFile.processingFormat.sampleRate
         let totalFrames = AVAudioFrameCount(audioFile.length)
         let chunkFrames = AVAudioFrameCount(chunkDuration * sampleRate)
+        let chunksPerWindow = Int(windowDuration / chunkDuration)
 
+        var chunkPeaks: [Float] = []
         var currentFrame: AVAudioFramePosition = 0
-        var consecutiveAboveThreshold = 0
-        var firstAboveThresholdFrame: AVAudioFramePosition = 0
 
+        // First pass: collect peak values for each chunk
         while currentFrame < totalFrames {
             let framesToRead = min(chunkFrames, AVAudioFrameCount(totalFrames - AVAudioFrameCount(currentFrame)))
             guard let buffer = AVAudioPCMBuffer(pcmFormat: audioFile.processingFormat, frameCapacity: framesToRead) else {
@@ -45,28 +46,29 @@ func findEnergyOnset(in url: URL, threshold: Float = 0.12, chunkDuration: Double
                 }
             }
 
-            // Track consecutive chunks above threshold
-            if maxSample >= threshold {
-                if consecutiveAboveThreshold == 0 {
-                    firstAboveThresholdFrame = currentFrame
-                }
-                consecutiveAboveThreshold += 1
-
-                // Found sustained energy
-                if consecutiveAboveThreshold >= requiredConsecutive {
-                    let timeSeconds = Double(firstAboveThresholdFrame) / sampleRate
-                    return timeSeconds
-                }
-            } else {
-                // Reset if we drop below threshold
-                consecutiveAboveThreshold = 0
-            }
-
+            chunkPeaks.append(maxSample)
             currentFrame += AVAudioFramePosition(framesToRead)
         }
 
-        // No sustained content found, return 0
-        return 0
+        // Second pass: find window with highest average energy
+        var bestWindowStart = 0
+        var bestWindowEnergy: Float = 0
+
+        for windowStart in 0..<max(1, chunkPeaks.count - chunksPerWindow) {
+            let windowEnd = min(windowStart + chunksPerWindow, chunkPeaks.count)
+            let windowPeaks = Array(chunkPeaks[windowStart..<windowEnd])
+            let avgEnergy = windowPeaks.reduce(0, +) / Float(windowPeaks.count)
+
+            if avgEnergy > bestWindowEnergy {
+                bestWindowEnergy = avgEnergy
+                bestWindowStart = windowStart
+            }
+        }
+
+        // Convert chunk index to time
+        let timeSeconds = Double(bestWindowStart) * chunkDuration
+        return timeSeconds
+
     } catch {
         print("⚠️ Error finding energy onset: \(error)")
         return 0
