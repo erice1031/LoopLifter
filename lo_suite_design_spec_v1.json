@@ -1,0 +1,617 @@
+{
+  "meta": {
+    "name": "Lo Suite Design Spec",
+    "version": "1.0",
+    "exported_at": "2026-02-16T14:57:54.304244",
+    "format": "json",
+    "purpose": "Design + UI wireframe + icon + component system for Lo Suite (LoopLifter + LoOptimizer) suitable for LLM ingestion"
+  },
+  "brand": {
+    "suite_name": "Lo Suite",
+    "tagline": "Deconstruct. Design. Deliver.",
+    "aesthetic": "Dark studio minimal with subtle AI precision and boutique instrument refinement",
+    "typography": {
+      "ui_primary": "SF Pro (system)",
+      "ui_headings": "SF Pro Display",
+      "ui_body": "SF Pro Text",
+      "ui_mono": "SF Mono",
+      "style": "Clean geometric sans-serif"
+    },
+    "base_palette": {
+      "background_primary": "#0E1014",
+      "panel_surface": "#151821",
+      "elevated_surface": "#1C202B",
+      "borders_dividers": "#272C38",
+      "text_primary": "#E6E8ED",
+      "text_secondary": "#9CA3AF",
+      "disabled": "#4B5563"
+    },
+    "app_accents": {
+      "looplifter": {
+        "accent": "#7C5CFF",
+        "glow_rgba": "rgba(124,92,255,0.25)"
+      },
+      "looptimizer": {
+        "accent": "#00E5FF",
+        "glow_rgba": "rgba(0,229,255,0.22)"
+      },
+      "deliver_layer": {
+        "accent": "#F59E0B"
+      }
+    },
+    "motion": {
+      "timing_ms": {
+        "min": 120,
+        "max": 180
+      },
+      "easing": "easeOut",
+      "rules": [
+        "No bounce",
+        "No exaggerated scaling",
+        "Glow/fade over flash"
+      ]
+    },
+    "accent_rules": {
+      "one_accent_per_view": true,
+      "avoid": [
+        "Accent on body text",
+        "Large accent panel fills",
+        "Multiple accents mixed in one view"
+      ]
+    }
+  },
+  "icon_system": {
+    "concept": "Split Waveform Mark",
+    "meaning": [
+      "Deconstruct",
+      "Design",
+      "Deliver"
+    ],
+    "master_canvas": {
+      "size_px": 1024,
+      "safe_margin_pct": 14,
+      "safe_margin_px": 143,
+      "usable_diameter_px": 738
+    },
+    "base_shape": {
+      "outer_form": "circle",
+      "stroke": "none",
+      "gradient": {
+        "type": "subtle_radial",
+        "center_color": "#141821",
+        "edge_color": "#0E1014",
+        "opacity_shift_pct": {
+          "min": 6,
+          "max": 8
+        },
+        "note": "Barely perceptible"
+      }
+    },
+    "symbol_geometry": {
+      "occupancy_pct_of_circle_diameter": {
+        "min": 60,
+        "max": 65
+      },
+      "symbol_total_width_px_at_1024": 440,
+      "tilt_degrees_clockwise": {
+        "min": 8,
+        "max": 12,
+        "recommended": 10
+      },
+      "segments": {
+        "count": 3,
+        "segment_width_px_each": 110,
+        "internal_spacing_px": 36,
+        "peak_heights_px": {
+          "max": 320,
+          "min": 180
+        },
+        "corner_radius_px": {
+          "min": 6,
+          "max": 8
+        }
+      },
+      "internal_negative_space_lines": {
+        "enabled": true,
+        "thickness_px": 1.5,
+        "spacing_px": 36
+      }
+    },
+    "lighting": {
+      "accent_applied_to": [
+        "Inner faces of segments",
+        "Subtle inner glow"
+      ],
+      "glow": {
+        "blur_px": 40,
+        "opacity_pct": {
+          "min": 20,
+          "max": 25
+        }
+      },
+      "constraints": [
+        "Glow must not exceed circle boundary",
+        "No outer neon halo"
+      ]
+    },
+    "small_size_adaptations": [
+      {
+        "max_size_px": 64,
+        "changes": [
+          "Remove internal negative line detail",
+          "Simplify to 3 solid peaks",
+          "Remove glow",
+          "Flat accent fill"
+        ]
+      },
+      {
+        "max_size_px": 32,
+        "changes": [
+          "Flatten to solid accent waveform",
+          "Remove gradient",
+          "Remove tilt if unreadable"
+        ]
+      }
+    ],
+    "variants": {
+      "looplifter": {
+        "accent": "#7C5CFF"
+      },
+      "looptimizer": {
+        "accent": "#00E5FF"
+      },
+      "deliver_layer": {
+        "accent": "#F59E0B"
+      }
+    },
+    "avoid": [
+      "Bevel effects",
+      "Drop shadows",
+      "Heavy gradients",
+      "Thick outlines",
+      "Gloss reflections"
+    ]
+  },
+  "ui_component_systems": {
+    "looplifter": {
+      "principles": [
+        "Analytical",
+        "Precise",
+        "Efficient",
+        "Studio minimal"
+      ],
+      "spacing_grid_px": 8,
+      "buttons": {
+        "primary": {
+          "background": "#7C5CFF",
+          "text": "#FFFFFF",
+          "corner_radius_px": 10,
+          "padding_px": {
+            "vertical": [
+              10,
+              12
+            ],
+            "horizontal": [
+              18,
+              22
+            ]
+          },
+          "hover": {
+            "brightness_delta_pct": 6,
+            "glow_opacity_pct": 15
+          },
+          "pressed": {
+            "brightness_delta_pct": -8,
+            "scale": "none"
+          }
+        },
+        "secondary": {
+          "background": "transparent",
+          "border": {
+            "width_px": 1,
+            "color": "#272C38"
+          },
+          "text": "#E6E8ED",
+          "hover": {
+            "background": "#1C202B"
+          },
+          "pressed": {
+            "background": "#151821"
+          }
+        },
+        "tertiary_text": {
+          "background": "none",
+          "text": "#7C5CFF",
+          "hover": {
+            "underline": true,
+            "transition_ms": 120
+          }
+        }
+      },
+      "knobs": {
+        "diameter_px": 36,
+        "track": {
+          "stroke_px": 2,
+          "inactive": "#272C38",
+          "active": "#7C5CFF"
+        },
+        "center_cap": {
+          "fill": "#151821"
+        },
+        "indicator": {
+          "width_px": 2,
+          "color": "#FFFFFF"
+        },
+        "readout": {
+          "font": "SF Mono",
+          "size_pt": 11,
+          "placement": "below"
+        },
+        "style_rules": [
+          "No chrome gloss",
+          "No 3D shading"
+        ]
+      },
+      "sliders": {
+        "orientation": "horizontal",
+        "track_height_px": 4,
+        "inactive": "#272C38",
+        "active": "#7C5CFF",
+        "handle": {
+          "shape": "circle",
+          "diameter_px": 12,
+          "fill": "flat",
+          "shadow_opacity_pct": 10,
+          "hover_diameter_px": 14,
+          "animation": "no bounce"
+        }
+      },
+      "asset_tiles": {
+        "size_px": {
+          "width": 160,
+          "height": 110
+        },
+        "background": "#151821",
+        "border": {
+          "width_px": 1,
+          "color": "#272C38"
+        },
+        "corner_radius_px": 8,
+        "content": {
+          "top": "mini waveform preview",
+          "middle": "loop name",
+          "bottom": [
+            "BPM",
+            "Key",
+            "Confidence%"
+          ]
+        },
+        "states": {
+          "hover": {
+            "border_lighten": true,
+            "lift_px": -1
+          },
+          "selected": {
+            "border_color": "#7C5CFF",
+            "glow_opacity_pct": 15,
+            "background": "#1C202B"
+          }
+        }
+      },
+      "waveform_analysis_view": {
+        "waveform_color": {
+          "hex": "#9CA3AF",
+          "opacity_pct": 65
+        },
+        "transient_markers": {
+          "color": "#7C5CFF",
+          "width_px": 1
+        },
+        "suggested_region_overlay": {
+          "color": "#7C5CFF",
+          "opacity_pct": [
+            12,
+            15
+          ]
+        },
+        "active_region_border": {
+          "color": "#7C5CFF",
+          "width_px": 2
+        }
+      },
+      "panels": {
+        "background": "#151821",
+        "header_background": "#141821",
+        "divider": {
+          "width_px": 1,
+          "color": "#272C38"
+        },
+        "padding_px": 16,
+        "rules": [
+          "Use tonal separation instead of heavy shadows"
+        ]
+      },
+      "labels": {
+        "section_headers": {
+          "font": "SF Pro Display",
+          "weight": "Semibold",
+          "size_pt": [
+            14,
+            16
+          ],
+          "uppercase_optional": true
+        },
+        "parameter_labels": {
+          "font": "SF Pro Text",
+          "weight": "Medium",
+          "size_pt": [
+            11,
+            12
+          ]
+        },
+        "technical_metrics": {
+          "font": "SF Mono",
+          "size_pt": 11
+        },
+        "spacing_rules": {
+          "min_px_between_label_and_control": 8
+        }
+      }
+    }
+  },
+  "wireframes": {
+    "looptimizer": {
+      "window": {
+        "min_size_px": {
+          "width": 1440,
+          "height": 900
+        },
+        "ideal_size_px": {
+          "width": 1680,
+          "height": 1050
+        },
+        "grid_px": 8
+      },
+      "zones": {
+        "transport_bar": {
+          "height_px": 64
+        },
+        "left_panel": {
+          "width_px": 220
+        },
+        "right_panel": {
+          "width_px": 300,
+          "collapsible": true
+        },
+        "center_waveforms": {
+          "height_px": 420
+        },
+        "slice_pads": {
+          "height_px": 260
+        },
+        "sequencer": {
+          "height_px": 220
+        }
+      },
+      "transport_bar_layout": {
+        "padding_px": {
+          "left": 16,
+          "right": 16
+        },
+        "group_spacing_px": 24,
+        "left_group": [
+          "Play",
+          "Stop",
+          "BPM(editable)",
+          "Swing",
+          "Quantize"
+        ],
+        "center_group": [
+          "ProjectName",
+          "SaveIndicator"
+        ],
+        "right_group": [
+          "PerformanceModeToggle",
+          "Export",
+          "Settings"
+        ],
+        "divider_bottom": {
+          "width_px": 1,
+          "color": "#272C38"
+        }
+      },
+      "channel_strips_left_panel": {
+        "channels": 4,
+        "channel_block": {
+          "height_px": 160,
+          "gap_px": 16,
+          "padding_px": 16,
+          "corner_radius_px": 12
+        },
+        "controls": [
+          "StemLabel",
+          "AccentIndicatorLine",
+          "VolumeFader",
+          "Mute",
+          "Solo",
+          "PanKnob",
+          "FXButton"
+        ],
+        "selected_state": {
+          "border_width_px": 1,
+          "border_color": "accent"
+        }
+      },
+      "multi_channel_waveforms_center": {
+        "lane_count": 4,
+        "lane_height_px": 90,
+        "lane_gap_px": 16,
+        "timeline_ruler_height_px": 24,
+        "waveform_height_px": 66,
+        "slice_markers": {
+          "width_px": 2,
+          "label_font": "SF Mono 10pt"
+        },
+        "hover_preview_line": {
+          "color": "#FFFFFF",
+          "width_px": 1
+        },
+        "zoom_control": {
+          "placement": "top-right"
+        }
+      },
+      "slice_pads": {
+        "grid": {
+          "rows": 4,
+          "cols": 16
+        },
+        "pad_size_px": 60,
+        "pad_gap_px": 12,
+        "row_label": "Stem name on left",
+        "pad_content": {
+          "corner_label": "Slice number (SF Mono 9pt)",
+          "center": "minimal or blank"
+        },
+        "trigger_state": {
+          "glow": "subtle accent",
+          "scale": "none"
+        }
+      },
+      "sequencer": {
+        "default_steps": 16,
+        "step_width_px": 24,
+        "step_gap_px": 2,
+        "states": {
+          "inactive": "#272C38",
+          "active": "accent"
+        },
+        "probability_indicator": "small dot bottom-right",
+        "playhead": {
+          "width_px": 2,
+          "color": "#FFFFFF"
+        },
+        "controls_above": [
+          "PatternLength",
+          "Swing",
+          "Clear",
+          "Duplicate",
+          "Save"
+        ]
+      },
+      "effects_rack_right_panel": {
+        "effect_module": {
+          "height_px": 90,
+          "gap_px": 12
+        },
+        "module_layout": {
+          "left": "Effect name",
+          "center": "3-4 knobs",
+          "right": [
+            "Bypass",
+            "DragHandle"
+          ]
+        },
+        "expandable": true
+      },
+      "performance_mode": {
+        "hides": [
+          "Waveforms",
+          "Sequencer"
+        ],
+        "expands": [
+          "SlicePads (to ~65% of window height)"
+        ],
+        "left_panel": "collapse to minimal mute/solo strip",
+        "right_panel": "hidden"
+      }
+    },
+    "looplifter": {
+      "layout": {
+        "top_bar_height_px": 72,
+        "left_panel_width_px": 180,
+        "right_panel_width_px": 320,
+        "analysis_view_height_px": 420,
+        "asset_grid_height_px": 240
+      },
+      "top_bar": {
+        "left_group": [
+          "Import",
+          "Separate",
+          "Analyze"
+        ],
+        "center_group": [
+          "FileName",
+          "DetectedBPM"
+        ],
+        "right_group": [
+          "SendToLoOptimizer",
+          "ExportPack"
+        ],
+        "progress": "clean progress bar + stage indicators (Separate → Analyze → Extract)"
+      },
+      "left_panel_stem_selector": {
+        "tabs": [
+          "Drums",
+          "Bass",
+          "Vocals",
+          "Other"
+        ],
+        "tab_height_px": 48,
+        "tab_padding_px": 16,
+        "selected_state": "accent highlight",
+        "icon": "small waveform preview"
+      },
+      "analysis_view_center": {
+        "timeline_ruler_height_px": 24,
+        "waveform_height_px": 320,
+        "energy_graph_height_px": 76,
+        "loop_suggestions": "violet region overlays",
+        "boundaries": {
+          "accent_line_width_px": 2
+        },
+        "region_labels": "floating tags (SF Mono 10pt)",
+        "zoom": "bottom-right"
+      },
+      "right_panel_controls": {
+        "sections": {
+          "LoopDetection": [
+            "TargetBarsDropdown",
+            "SensitivitySlider",
+            "SilenceRemovalToggle"
+          ],
+          "PhraseDetection": [
+            "MinDuration",
+            "ConfidenceThreshold"
+          ],
+          "OutputSettings": [
+            "NormalizeToggle",
+            "AutoTagToggle"
+          ]
+        },
+        "spacing_px": {
+          "between_sections": 24,
+          "between_controls": 12
+        },
+        "primary_action": {
+          "button": "GeneratePack",
+          "full_width": true
+        }
+      },
+      "asset_grid_bottom": {
+        "scroll": "horizontal",
+        "tile_size_px": {
+          "width": 160,
+          "height": 110
+        },
+        "tile_gap_px": 12,
+        "metadata_bar": [
+          "TotalExtracted",
+          "SelectedCount"
+        ],
+        "actions": [
+          "BatchExport"
+        ]
+      }
+    }
+  }
+}
