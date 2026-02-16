@@ -6,6 +6,249 @@
 //
 
 import SwiftUI
+import AVFoundation
+
+// MARK: - Rotary Knob
+
+struct RotaryKnob: View {
+    @Binding var value: Double
+    var range: ClosedRange<Double> = -100...100
+    var step: Double = 1.0
+    var sensitivity: Double = 0.5
+    var label: String = ""
+    var valueFormatter: (Double) -> String = { String(format: "%.2f", $0) }
+    var accentColor: Color = .orange
+    var onChange: (() -> Void)? = nil
+
+    @State private var isDragging = false
+    @State private var lastDragValue: CGFloat = 0
+
+    private var rotation: Angle {
+        let normalized = (value - range.lowerBound) / (range.upperBound - range.lowerBound)
+        let degrees = -135 + (normalized * 270)
+        return .degrees(degrees)
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 4)
+                    .frame(width: 80, height: 80)
+
+                Circle()
+                    .trim(from: 0, to: CGFloat((value - range.lowerBound) / (range.upperBound - range.lowerBound)))
+                    .stroke(accentColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .frame(width: 80, height: 80)
+                    .rotationEffect(.degrees(-225))
+
+                Circle()
+                    .fill(LinearGradient(colors: [Color(white: 0.35), Color(white: 0.2)], startPoint: .top, endPoint: .bottom))
+                    .frame(width: 70, height: 70)
+                    .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+
+                Rectangle()
+                    .fill(accentColor)
+                    .frame(width: 3, height: 20)
+                    .offset(y: -20)
+                    .rotationEffect(rotation)
+
+                Circle()
+                    .fill(Color(white: 0.25))
+                    .frame(width: 20, height: 20)
+            }
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { gesture in
+                        if !isDragging {
+                            isDragging = true
+                            lastDragValue = gesture.location.y
+                        }
+                        let delta = lastDragValue - gesture.location.y
+                        lastDragValue = gesture.location.y
+                        let change = Double(delta) * sensitivity * step
+                        let newValue = value + change
+                        let snapped = (newValue / step).rounded() * step
+                        value = Swift.min(Swift.max(snapped, range.lowerBound), range.upperBound)
+                        onChange?()
+                    }
+                    .onEnded { _ in isDragging = false }
+            )
+
+            Text(valueFormatter(value))
+                .font(.system(.caption, design: .monospaced))
+                .foregroundColor(isDragging ? accentColor : .secondary)
+
+            if !label.isEmpty {
+                Text(label)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+}
+
+// MARK: - Draggable Value
+
+struct DraggableValue: View {
+    @Binding var value: Double
+    var range: ClosedRange<Double> = 0...1000
+    var step: Double = 0.01
+    var sensitivity: Double = 0.5
+    var formatter: (Double) -> String = { String(format: "%.3f", $0) }
+    var suffix: String = "s"
+    var accentColor: Color = .orange
+    var onChange: (() -> Void)? = nil
+
+    @State private var isDragging = false
+    @State private var lastDragValue: CGFloat = 0
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Text(formatter(value))
+                .font(.system(.body, design: .monospaced))
+                .fontWeight(.medium)
+                .foregroundColor(isDragging ? accentColor : .primary)
+            Text(suffix)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(RoundedRectangle(cornerRadius: 4).fill(isDragging ? accentColor.opacity(0.15) : Color(NSColor.controlBackgroundColor)))
+        .overlay(RoundedRectangle(cornerRadius: 4).stroke(isDragging ? accentColor : Color.clear, lineWidth: 1))
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { gesture in
+                    if !isDragging {
+                        isDragging = true
+                        lastDragValue = gesture.location.y
+                    }
+                    let delta = lastDragValue - gesture.location.y
+                    lastDragValue = gesture.location.y
+                    let change = Double(delta) * sensitivity * step
+                    let newValue = value + change
+                    let snapped = (newValue / step).rounded() * step
+                    value = Swift.min(Swift.max(snapped, range.lowerBound), range.upperBound)
+                    onChange?()
+                }
+                .onEnded { _ in isDragging = false }
+        )
+        .help("Drag up/down to adjust")
+    }
+}
+
+// MARK: - Waveform View
+
+struct WaveformView: View {
+    let audioURL: URL?
+    var startTime: TimeInterval
+    var endTime: TimeInterval
+    var totalDuration: TimeInterval
+    var accentColor: Color = .orange
+
+    @State private var waveformData: [Float] = []
+    @State private var isLoading = true
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color(NSColor.controlBackgroundColor))
+
+                if isLoading {
+                    ProgressView().scaleEffect(0.7)
+                } else if waveformData.isEmpty {
+                    Text("No waveform").font(.caption).foregroundColor(.secondary)
+                } else {
+                    Canvas { context, size in
+                        let width = size.width
+                        let height = size.height
+                        let midY = height / 2
+                        let samplesPerPixel = Swift.max(1, waveformData.count / Int(width))
+
+                        // Draw full waveform (dimmed)
+                        var path = Path()
+                        for x in 0..<Int(width) {
+                            let sampleIndex = Swift.min(x * samplesPerPixel, waveformData.count - 1)
+                            let sample = waveformData[sampleIndex]
+                            let amplitude = CGFloat(sample) * (height / 2) * 0.9
+                            path.move(to: CGPoint(x: CGFloat(x), y: midY - amplitude))
+                            path.addLine(to: CGPoint(x: CGFloat(x), y: midY + amplitude))
+                        }
+                        context.stroke(path, with: .color(.gray.opacity(0.4)), lineWidth: 1)
+
+                        // Calculate region position
+                        let regionStartX = (startTime / totalDuration) * width
+                        let regionEndX = (endTime / totalDuration) * width
+
+                        // Draw highlighted region
+                        let regionRect = CGRect(x: regionStartX, y: 0, width: regionEndX - regionStartX, height: height)
+                        context.fill(Path(regionRect), with: .color(accentColor.opacity(0.2)))
+
+                        // Draw highlighted waveform in region
+                        var regionPath = Path()
+                        for x in Int(regionStartX)..<Int(regionEndX) {
+                            let sampleIndex = Swift.min(x * samplesPerPixel, waveformData.count - 1)
+                            let sample = waveformData[sampleIndex]
+                            let amplitude = CGFloat(sample) * (height / 2) * 0.9
+                            regionPath.move(to: CGPoint(x: CGFloat(x), y: midY - amplitude))
+                            regionPath.addLine(to: CGPoint(x: CGFloat(x), y: midY + amplitude))
+                        }
+                        context.stroke(regionPath, with: .color(accentColor), lineWidth: 1)
+
+                        // Draw region boundaries
+                        let boundaryPath = Path { p in
+                            p.move(to: CGPoint(x: regionStartX, y: 0))
+                            p.addLine(to: CGPoint(x: regionStartX, y: height))
+                            p.move(to: CGPoint(x: regionEndX, y: 0))
+                            p.addLine(to: CGPoint(x: regionEndX, y: height))
+                        }
+                        context.stroke(boundaryPath, with: .color(accentColor), lineWidth: 2)
+                    }
+                }
+            }
+        }
+        .frame(height: 60)
+        .onAppear { loadWaveform() }
+        .onChange(of: audioURL) { _, _ in loadWaveform() }
+    }
+
+    private func loadWaveform() {
+        guard let url = audioURL else { isLoading = false; return }
+        isLoading = true
+        Task {
+            let data = await generateWaveformData(from: url, sampleCount: 500)
+            await MainActor.run { waveformData = data; isLoading = false }
+        }
+    }
+
+    private func generateWaveformData(from url: URL, sampleCount: Int) async -> [Float] {
+        do {
+            let audioFile = try AVAudioFile(forReading: url)
+            let format = audioFile.processingFormat
+            let frameCount = AVAudioFrameCount(audioFile.length)
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else { return [] }
+            try audioFile.read(into: buffer)
+            guard let channelData = buffer.floatChannelData else { return [] }
+            let framesPerSample = Int(frameCount) / sampleCount
+            var peaks: [Float] = []
+            for i in 0..<sampleCount {
+                let startFrame = i * framesPerSample
+                let endFrame = Swift.min(startFrame + framesPerSample, Int(frameCount))
+                var maxSample: Float = 0
+                for frame in startFrame..<endFrame {
+                    let sample = abs(channelData[0][frame])
+                    if sample > maxSample { maxSample = sample }
+                }
+                peaks.append(maxSample)
+            }
+            return peaks
+        } catch { return [] }
+    }
+}
+
+// MARK: - Results View
 
 struct ResultsView: View {
     @Binding var samples: [ExtractedSample]
