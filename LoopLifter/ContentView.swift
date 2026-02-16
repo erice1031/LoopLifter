@@ -80,6 +80,7 @@ struct ContentView: View {
     @State private var extractedSamples: [ExtractedSample] = []
     @State private var audioURL: URL?
     @State private var isTargeted = false
+    @State private var detectedTempo: Double = 120.0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -146,15 +147,38 @@ struct ContentView: View {
                 .font(.title2)
                 .fontWeight(.semibold)
 
+            // Show project name if loaded
+            if let projectName = ProjectManager.shared.currentProject?.name {
+                Text("—")
+                    .foregroundColor(.secondary)
+                Text(projectName)
+                    .foregroundColor(.secondary)
+            }
+
             Spacer()
 
+            // Open Project button (always visible)
+            Button {
+                openProject()
+            } label: {
+                Label("Open", systemImage: "folder")
+            }
+
             if audioURL != nil && analysisState == .complete {
+                // Save Project button
+                Button {
+                    saveProject()
+                } label: {
+                    Label("Save", systemImage: "square.and.arrow.down")
+                }
+
                 Button {
                     analysisState = .idle
                     extractedSamples = []
                     audioURL = nil
+                    ProjectManager.shared.closeProject()
                 } label: {
-                    Label("New File", systemImage: "plus")
+                    Label("New", systemImage: "plus")
                 }
             }
         }
@@ -175,28 +199,41 @@ struct ContentView: View {
         analysisState = .separating(progress: 0)
 
         do {
-            // Check if Demucs is installed
-            guard await StemSeparator.isDemucsInstalled() else {
-                analysisState = .error(StemSeparationError.demucsNotFound.localizedDescription)
-                return
-            }
+            let stemURLs: [StemType: URL]
 
-            // Create output directory for stems
-            let outputDir = FileManager.default.temporaryDirectory
-                .appendingPathComponent("LoopLifter")
-                .appendingPathComponent(UUID().uuidString)
-
-            try FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
-
-            // Separate stems with Demucs
-            let stemURLs = try await StemSeparator.separate(
-                audioURL: url,
-                outputDir: outputDir,
-                model: .htdemucs
-            ) { progress in
-                Task { @MainActor in
-                    self.analysisState = .separating(progress: progress)
+            // Check cache first
+            if let cachedStems = StemCache.shared.getCachedStems(for: url) {
+                print("⚡ Using cached stems - skipping Demucs!")
+                stemURLs = cachedStems
+                analysisState = .separating(progress: 1.0)
+            } else {
+                // Check if Demucs is installed
+                guard await StemSeparator.isDemucsInstalled() else {
+                    analysisState = .error(StemSeparationError.demucsNotFound.localizedDescription)
+                    return
                 }
+
+                // Create output directory for stems
+                let outputDir = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("LoopLifter")
+                    .appendingPathComponent(UUID().uuidString)
+
+                try FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
+
+                // Separate stems with Demucs
+                let separatedStems = try await StemSeparator.separate(
+                    audioURL: url,
+                    outputDir: outputDir,
+                    model: .htdemucs
+                ) { progress in
+                    Task { @MainActor in
+                        self.analysisState = .separating(progress: progress)
+                    }
+                }
+
+                // Cache the stems for next time
+                StemCache.shared.cacheStems(separatedStems, for: url)
+                stemURLs = separatedStems
             }
 
             // Analyze each stem
@@ -284,6 +321,10 @@ struct ContentView: View {
             }
 
             extractedSamples = allSamples
+            // Store detected tempo from first stem with valid tempo
+            if let firstTempo = allSamples.first?.tempo, firstTempo > 0 {
+                detectedTempo = firstTempo
+            }
             analysisState = .complete
 
         } catch {
@@ -303,6 +344,51 @@ struct ContentView: View {
     private func openInLoOptimizer() {
         // TODO: Implement LoOptimizer handoff
         print("Opening in LoOptimizer")
+    }
+
+    // MARK: - Project Management
+
+    private func saveProject() {
+        guard let url = audioURL else { return }
+
+        // Get tempo from first sample or use default
+        let tempo = extractedSamples.first?.tempo ?? detectedTempo
+
+        let success = ProjectManager.shared.save(
+            samples: extractedSamples,
+            audioURL: url,
+            tempo: tempo
+        )
+
+        if success {
+            print("✅ Project saved successfully")
+        }
+    }
+
+    private func openProject() {
+        guard let result = ProjectManager.shared.open() else {
+            return
+        }
+
+        // Add to recent projects
+        if let projectURL = ProjectManager.shared.currentProjectURL {
+            ProjectManager.shared.addToRecent(projectURL)
+        }
+
+        // If samples restored successfully, show results
+        if !result.samples.isEmpty {
+            audioURL = result.audioURL
+            extractedSamples = result.samples
+            detectedTempo = result.tempo
+            analysisState = .complete
+            print("✅ Project loaded with \(result.samples.count) samples")
+        } else {
+            // Stems not in cache - need to re-analyze
+            audioURL = result.audioURL
+            detectedTempo = result.tempo
+            print("⚠️ Stems not cached, re-analyzing...")
+            startAnalysis(url: result.audioURL)
+        }
     }
 }
 

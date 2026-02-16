@@ -8,6 +8,19 @@
 import Foundation
 import AVFoundation
 
+/// Playback modes for sample preview
+enum PlaybackMode: String, CaseIterable {
+    case oneShot = "One-Shot"
+    case loop = "Loop"
+
+    var icon: String {
+        switch self {
+        case .oneShot: return "play.fill"
+        case .loop: return "repeat"
+        }
+    }
+}
+
 /// Singleton audio player for previewing samples
 @Observable
 class AudioPreviewPlayer {
@@ -16,11 +29,13 @@ class AudioPreviewPlayer {
     private let audioEngine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
     private var currentFile: AVAudioFile?
+    private var currentBuffer: AVAudioPCMBuffer?
     private var playTimer: Timer?
     private var isEngineSetup = false
 
     var isPlaying: Bool = false
     var currentSampleID: UUID?
+    var playbackMode: PlaybackMode = .oneShot
 
     private init() {
         setupEngine()
@@ -127,20 +142,30 @@ class AudioPreviewPlayer {
                 }
             }
 
-            // Schedule the buffer
-            playerNode.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
+            // Store buffer for potential looping
+            currentBuffer = buffer
+
+            // Schedule the buffer with looping if enabled
+            if playbackMode == .loop {
+                playerNode.scheduleBuffer(buffer, at: nil, options: .loops, completionHandler: nil)
+            } else {
+                playerNode.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
+            }
             playerNode.play()
 
             isPlaying = true
             currentSampleID = sample.id
 
-            // Schedule stop
             let playDuration = Double(frameCount) / sampleRate
-            playTimer = Timer.scheduledTimer(withTimeInterval: playDuration + 0.05, repeats: false) { [weak self] _ in
-                self?.stop()
+
+            // Schedule stop only for one-shot mode
+            if playbackMode == .oneShot {
+                playTimer = Timer.scheduledTimer(withTimeInterval: playDuration + 0.05, repeats: false) { [weak self] _ in
+                    self?.stop()
+                }
             }
 
-            print("   ▶️ Playing \(frameCount) frames (\(String(format: "%.3f", playDuration))s)")
+            print("   ▶️ Playing \(frameCount) frames (\(String(format: "%.3f", playDuration))s) - \(playbackMode.rawValue)")
 
         } catch {
             print("❌ Failed to play sample: \(error.localizedDescription)")
@@ -156,12 +181,29 @@ class AudioPreviewPlayer {
         // Don't stop the engine, just the player
 
         currentFile = nil
+        currentBuffer = nil
         isPlaying = false
         currentSampleID = nil
+    }
+
+    /// Toggle playback - stops if same sample is playing, plays if different or stopped
+    func togglePlay(sample: ExtractedSample) {
+        if isPlaying(sample: sample) {
+            stop()
+        } else {
+            play(sample: sample)
+        }
     }
 
     /// Check if a specific sample is currently playing
     func isPlaying(sample: ExtractedSample) -> Bool {
         return isPlaying && currentSampleID == sample.id
+    }
+
+    /// Set playback mode
+    func setMode(_ mode: PlaybackMode) {
+        playbackMode = mode
+        // If currently playing and switching to one-shot, let it finish
+        // If switching to loop while playing, we'd need to restart - for simplicity, don't change mid-play
     }
 }

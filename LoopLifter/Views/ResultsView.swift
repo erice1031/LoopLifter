@@ -369,6 +369,194 @@ struct WaveformView: View {
     }
 }
 
+// MARK: - Zoomed Waveform View (shows sample region with context)
+
+struct ZoomedWaveformView: View {
+    let audioURL: URL?
+    var sampleStart: TimeInterval  // Sample start time
+    var sampleEnd: TimeInterval    // Sample end time
+    var viewStart: TimeInterval    // Visible window start
+    var viewEnd: TimeInterval      // Visible window end
+    var accentColor: Color = LoSuite.Colors.accent
+    var height: CGFloat = 180
+
+    @State private var waveformData: [Float] = []
+    @State private var isLoading = true
+    @State private var totalDuration: TimeInterval = 0
+
+    private var viewDuration: TimeInterval {
+        viewEnd - viewStart
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                // Background
+                RoundedRectangle(cornerRadius: LoSuite.Radius.medium)
+                    .fill(LoSuite.Colors.panelSurface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: LoSuite.Radius.medium)
+                            .stroke(LoSuite.Colors.bordersDividers, lineWidth: 1)
+                    )
+
+                if isLoading {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .tint(LoSuite.Colors.textSecondary)
+                } else if waveformData.isEmpty {
+                    Text("No waveform")
+                        .font(.system(size: LoSuite.Typography.caption))
+                        .foregroundColor(LoSuite.Colors.textSecondary)
+                } else {
+                    Canvas { context, size in
+                        let width = size.width
+                        let height = size.height
+                        let midY = height / 2
+
+                        // Calculate which samples to show based on view window
+                        let startRatio = viewStart / totalDuration
+                        let endRatio = viewEnd / totalDuration
+                        let startSample = Int(startRatio * Double(waveformData.count))
+                        let endSample = min(Int(endRatio * Double(waveformData.count)), waveformData.count)
+                        let visibleSamples = endSample - startSample
+
+                        guard visibleSamples > 0 else { return }
+
+                        // Draw waveform for visible region
+                        var path = Path()
+                        for x in 0..<Int(width) {
+                            let sampleIndex = startSample + Int(Double(x) / width * Double(visibleSamples))
+                            guard sampleIndex < waveformData.count else { continue }
+                            let sample = waveformData[sampleIndex]
+                            let amplitude = CGFloat(sample) * (height / 2) * 0.85
+                            path.move(to: CGPoint(x: CGFloat(x), y: midY - amplitude))
+                            path.addLine(to: CGPoint(x: CGFloat(x), y: midY + amplitude))
+                        }
+                        // Inactive waveform color
+                        context.stroke(path, with: .color(Color(hex: "9CA3AF").opacity(0.65)), lineWidth: 1)
+
+                        // Calculate sample region position within view
+                        let regionStartX = ((sampleStart - viewStart) / viewDuration) * width
+                        let regionEndX = ((sampleEnd - viewStart) / viewDuration) * width
+
+                        // Draw region overlay
+                        let regionRect = CGRect(
+                            x: max(0, regionStartX),
+                            y: 0,
+                            width: min(width, regionEndX) - max(0, regionStartX),
+                            height: height
+                        )
+                        context.fill(Path(regionRect), with: .color(accentColor.opacity(0.15)))
+
+                        // Draw highlighted waveform in region
+                        var regionPath = Path()
+                        for x in Int(max(0, regionStartX))..<Int(min(width, regionEndX)) {
+                            let sampleIndex = startSample + Int(Double(x) / width * Double(visibleSamples))
+                            guard sampleIndex < waveformData.count else { continue }
+                            let sample = waveformData[sampleIndex]
+                            let amplitude = CGFloat(sample) * (height / 2) * 0.85
+                            regionPath.move(to: CGPoint(x: CGFloat(x), y: midY - amplitude))
+                            regionPath.addLine(to: CGPoint(x: CGFloat(x), y: midY + amplitude))
+                        }
+                        context.stroke(regionPath, with: .color(accentColor), lineWidth: 1)
+
+                        // Draw region boundaries
+                        let boundaryPath = Path { p in
+                            if regionStartX >= 0 && regionStartX <= width {
+                                p.move(to: CGPoint(x: regionStartX, y: 0))
+                                p.addLine(to: CGPoint(x: regionStartX, y: height))
+                            }
+                            if regionEndX >= 0 && regionEndX <= width {
+                                p.move(to: CGPoint(x: regionEndX, y: 0))
+                                p.addLine(to: CGPoint(x: regionEndX, y: height))
+                            }
+                        }
+                        context.stroke(boundaryPath, with: .color(accentColor), lineWidth: 2)
+                    }
+
+                    // Time labels
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Text(String(format: "%.2fs", sampleStart))
+                                .font(.system(size: LoSuite.Typography.caption2, design: .monospaced))
+                                .foregroundColor(accentColor)
+                                .padding(.leading, LoSuite.Spacing.sm)
+
+                            Spacer()
+
+                            // Duration in center
+                            Text(String(format: "%.3fs", sampleEnd - sampleStart))
+                                .font(.system(size: LoSuite.Typography.caption, weight: .medium, design: .monospaced))
+                                .foregroundColor(LoSuite.Colors.textPrimary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(LoSuite.Colors.elevatedSurface.opacity(0.9))
+                                .cornerRadius(4)
+
+                            Spacer()
+
+                            Text(String(format: "%.2fs", sampleEnd))
+                                .font(.system(size: LoSuite.Typography.caption2, design: .monospaced))
+                                .foregroundColor(accentColor)
+                                .padding(.trailing, LoSuite.Spacing.sm)
+                        }
+                        .padding(.bottom, LoSuite.Spacing.xs)
+                    }
+                }
+            }
+        }
+        .frame(height: height)
+        .onAppear { loadWaveform() }
+        .onChange(of: audioURL) { _, _ in loadWaveform() }
+    }
+
+    private func loadWaveform() {
+        guard let url = audioURL else { isLoading = false; return }
+        isLoading = true
+        Task {
+            let (data, duration) = await generateWaveformData(from: url, sampleCount: 1000)
+            await MainActor.run {
+                waveformData = data
+                totalDuration = duration
+                isLoading = false
+            }
+        }
+    }
+
+    private func generateWaveformData(from url: URL, sampleCount: Int) async -> ([Float], TimeInterval) {
+        do {
+            let audioFile = try AVAudioFile(forReading: url)
+            let format = audioFile.processingFormat
+            let frameCount = AVAudioFrameCount(audioFile.length)
+            let sampleRate = format.sampleRate
+            let duration = Double(frameCount) / sampleRate
+
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
+                return ([], duration)
+            }
+            try audioFile.read(into: buffer)
+            guard let channelData = buffer.floatChannelData else { return ([], duration) }
+
+            let framesPerSample = Int(frameCount) / sampleCount
+            var peaks: [Float] = []
+            for i in 0..<sampleCount {
+                let startFrame = i * framesPerSample
+                let endFrame = Swift.min(startFrame + framesPerSample, Int(frameCount))
+                var maxSample: Float = 0
+                for frame in startFrame..<endFrame {
+                    let sample = abs(channelData[0][frame])
+                    if sample > maxSample { maxSample = sample }
+                }
+                peaks.append(maxSample)
+            }
+            return (peaks, duration)
+        } catch {
+            return ([], 0)
+        }
+    }
+}
+
 // MARK: - Results View
 
 struct ResultsView: View {
@@ -382,92 +570,383 @@ struct ResultsView: View {
     @State private var editingSampleID: UUID? = nil
     @State private var nudgeGrid: NudgeGrid = .eighth
 
+    // Get the currently editing sample
+    private var editingSample: ExtractedSample? {
+        guard let id = editingSampleID else { return samples.first }
+        return samples.first { $0.id == id }
+    }
+
+    private var editingSampleBinding: Binding<ExtractedSample>? {
+        guard let id = editingSampleID,
+              let index = samples.firstIndex(where: { $0.id == id }) else {
+            return nil
+        }
+        return $samples[index]
+    }
+
     var body: some View {
-        HSplitView {
-            // Left: Results list
+        VStack(spacing: 0) {
+            // TOP: Large Waveform Area
             VStack(spacing: 0) {
-                ScrollView {
-                    VStack(spacing: LoSuite.Spacing.md) {
-                        ForEach(StemType.allCases, id: \.self) { stemType in
-                            let stemSamples = samples.filter { $0.stemType == stemType }
-                            if !stemSamples.isEmpty {
-                                StemSection(
-                                    stemType: stemType,
-                                    samples: stemSamples,
-                                    isExpanded: expandedStems.contains(stemType),
-                                    selectedSamples: $selectedSamples,
-                                    editingSampleID: $editingSampleID,
-                                    onToggleExpand: {
-                                        if expandedStems.contains(stemType) {
-                                            expandedStems.remove(stemType)
-                                        } else {
-                                            expandedStems.insert(stemType)
-                                        }
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    .padding(LoSuite.Spacing.md)
-                }
-                .background(LoSuite.Colors.backgroundPrimary)
-
-                // Divider
-                Rectangle()
-                    .fill(LoSuite.Colors.bordersDividers)
-                    .frame(height: 1)
-
-                // Export bar
+                // Waveform header
                 HStack {
-                    Text("\(selectedSamples.count) of \(samples.count) selected")
-                        .font(.system(size: LoSuite.Typography.body))
-                        .foregroundColor(LoSuite.Colors.textSecondary)
+                    if let sample = editingSample {
+                        Image(systemName: sample.category.icon)
+                            .foregroundColor(sample.stemType.designColor)
+
+                        Text(sample.name)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(LoSuite.Colors.textPrimary)
+
+                        Text("•")
+                            .foregroundColor(LoSuite.Colors.textSecondary)
+
+                        Text(sample.stemType.displayName)
+                            .font(.system(size: LoSuite.Typography.body))
+                            .foregroundColor(LoSuite.Colors.textSecondary)
+
+                        Text("•")
+                            .foregroundColor(LoSuite.Colors.textSecondary)
+
+                        Text("\(Int(sample.tempo)) BPM")
+                            .font(.system(size: LoSuite.Typography.body, design: .monospaced))
+                            .foregroundColor(LoSuite.Colors.textSecondary)
+                    } else {
+                        Text("Select a sample to view waveform")
+                            .font(.system(size: LoSuite.Typography.body))
+                            .foregroundColor(LoSuite.Colors.textSecondary)
+                    }
 
                     Spacer()
 
-                    Button("Open in LoOptimizer") {
-                        onOpenInLoOptimizer()
+                    // Playback mode toggle
+                    Picker("Mode", selection: Binding(
+                        get: { AudioPreviewPlayer.shared.playbackMode },
+                        set: { AudioPreviewPlayer.shared.setMode($0) }
+                    )) {
+                        ForEach(PlaybackMode.allCases, id: \.self) { mode in
+                            Label(mode.rawValue, systemImage: mode.icon).tag(mode)
+                        }
                     }
-                    .disabled(selectedSamples.isEmpty)
+                    .pickerStyle(.segmented)
+                    .frame(width: 140)
 
-                    Button("Export Selected") {
-                        let selected = samples.filter { selectedSamples.contains($0.id) }
-                        onExport(selected)
+                    // Play button
+                    if let sample = editingSample {
+                        Button {
+                            AudioPreviewPlayer.shared.togglePlay(sample: sample)
+                        } label: {
+                            Image(systemName: AudioPreviewPlayer.shared.isPlaying(sample: sample) ? "stop.fill" : "play.fill")
+                                .font(.system(size: 14))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(sample.stemType.designColor)
+                        .controlSize(.small)
                     }
-                    .disabled(selectedSamples.isEmpty)
 
-                    Button("Export All") {
-                        onExportAll()
+                    // Grid picker for nudge
+                    if editingSampleID != nil {
+                        Picker("Grid", selection: $nudgeGrid) {
+                            ForEach(NudgeGrid.allCases, id: \.self) { grid in
+                                Text(grid.displayName).tag(grid)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 160)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(LoSuite.Colors.accent)
+                }
+                .padding(.horizontal, LoSuite.Spacing.md)
+                .padding(.vertical, LoSuite.Spacing.sm)
+
+                // Large waveform display - zoomed to sample region with context
+                if let sample = editingSample {
+                    // Calculate zoom window: show sample with ~20% padding on each side
+                    let sampleDuration = sample.effectiveEndTime - sample.effectiveStartTime
+                    let padding = max(sampleDuration * 0.25, 0.5) // At least 0.5s padding
+                    let viewStart = max(0, sample.effectiveStartTime - padding)
+                    let viewEnd = sample.effectiveEndTime + padding
+
+                    ZoomedWaveformView(
+                        audioURL: sample.audioURL,
+                        sampleStart: sample.effectiveStartTime,
+                        sampleEnd: sample.effectiveEndTime,
+                        viewStart: viewStart,
+                        viewEnd: viewEnd,
+                        accentColor: sample.stemType.designColor,
+                        height: 180
+                    )
+                    .padding(.horizontal, LoSuite.Spacing.md)
+                    .padding(.bottom, LoSuite.Spacing.sm)
+                } else {
+                    // Placeholder waveform
+                    RoundedRectangle(cornerRadius: LoSuite.Radius.medium)
+                        .fill(LoSuite.Colors.panelSurface)
+                        .frame(height: 180)
+                        .overlay(
+                            Text("Drop audio or select a sample")
+                                .foregroundColor(LoSuite.Colors.textSecondary)
+                        )
+                        .padding(.horizontal, LoSuite.Spacing.md)
+                        .padding(.bottom, LoSuite.Spacing.sm)
+                }
+
+                // Nudge controls (when editing)
+                if let binding = editingSampleBinding {
+                    let isLoop = binding.wrappedValue.category == .loop
+                    let tempo = binding.wrappedValue.tempo
+                    let secondsPerBeat = 60.0 / tempo
+                    let secondsPerBar = secondsPerBeat * 4
+
+                    HStack(spacing: LoSuite.Spacing.lg) {
+                        // Rotary knob for fine adjustment
+                        RotaryKnob(
+                            value: binding.nudgeOffset,
+                            range: -30...30,
+                            step: binding.wrappedValue.nudgeStepSize(for: nudgeGrid),
+                            sensitivity: 0.3,
+                            label: "Nudge",
+                            valueFormatter: { String(format: "%+.3fs", $0) },
+                            accentColor: binding.wrappedValue.stemType.designColor,
+                            onChange: { AudioPreviewPlayer.shared.play(sample: binding.wrappedValue) }
+                        )
+
+                        // Start time +/- buttons
+                        VStack(alignment: .leading, spacing: LoSuite.Spacing.xs) {
+                            Text("Start Offset")
+                                .font(.system(size: LoSuite.Typography.caption))
+                                .foregroundColor(LoSuite.Colors.textSecondary)
+
+                            HStack(spacing: LoSuite.Spacing.sm) {
+                                Button {
+                                    binding.wrappedValue.nudgeOffset -= binding.wrappedValue.nudgeStepSize(for: nudgeGrid)
+                                    AudioPreviewPlayer.shared.play(sample: binding.wrappedValue)
+                                } label: {
+                                    Image(systemName: "minus")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+
+                                Text(String(format: "%+.3fs", binding.wrappedValue.nudgeOffset))
+                                    .font(.system(size: LoSuite.Typography.body, weight: .medium, design: .monospaced))
+                                    .foregroundColor(LoSuite.Colors.textPrimary)
+                                    .frame(width: 80)
+
+                                Button {
+                                    binding.wrappedValue.nudgeOffset += binding.wrappedValue.nudgeStepSize(for: nudgeGrid)
+                                    AudioPreviewPlayer.shared.play(sample: binding.wrappedValue)
+                                } label: {
+                                    Image(systemName: "plus")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+
+                                if binding.wrappedValue.nudgeOffset != 0 {
+                                    Button("Reset") {
+                                        binding.wrappedValue.nudgeOffset = 0
+                                        AudioPreviewPlayer.shared.play(sample: binding.wrappedValue)
+                                    }
+                                    .font(.system(size: LoSuite.Typography.caption))
+                                    .foregroundColor(LoSuite.Colors.accent)
+                                }
+                            }
+                        }
+
+                        Spacer()
+
+                        // Loop Length selector (only for loops)
+                        if isLoop {
+                            VStack(alignment: .leading, spacing: LoSuite.Spacing.xs) {
+                                Text("Loop Length")
+                                    .font(.system(size: LoSuite.Typography.caption))
+                                    .foregroundColor(LoSuite.Colors.textSecondary)
+
+                                HStack(spacing: 4) {
+                                    // Beat-based lengths (fractions of a bar)
+                                    ForEach([(1, "1 beat"), (2, "2 beats"), (4, "1 bar")], id: \.0) { beats, label in
+                                        let isSelected = abs(binding.wrappedValue.duration - Double(beats) * secondsPerBeat) < 0.01
+                                        Button {
+                                            let newDuration = Double(beats) * secondsPerBeat
+                                            binding.wrappedValue.duration = newDuration
+                                            binding.wrappedValue.barLength = beats == 4 ? 1 : nil
+                                            binding.wrappedValue.endTime = binding.wrappedValue.startTime + newDuration
+                                            AudioPreviewPlayer.shared.play(sample: binding.wrappedValue)
+                                        } label: {
+                                            Text(label)
+                                                .font(.system(size: LoSuite.Typography.caption2, weight: .medium))
+                                                .frame(height: 28)
+                                                .padding(.horizontal, 6)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .background(isSelected ? binding.wrappedValue.stemType.designColor : LoSuite.Colors.elevatedSurface)
+                                        .foregroundColor(isSelected ? .white : LoSuite.Colors.textPrimary)
+                                        .cornerRadius(LoSuite.Radius.small)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: LoSuite.Radius.small)
+                                                .stroke(isSelected ? binding.wrappedValue.stemType.designColor : LoSuite.Colors.bordersDividers, lineWidth: 1)
+                                        )
+                                    }
+
+                                    Rectangle()
+                                        .fill(LoSuite.Colors.bordersDividers)
+                                        .frame(width: 1, height: 20)
+
+                                    // Bar-based lengths
+                                    ForEach([2, 4, 8], id: \.self) { bars in
+                                        Button {
+                                            let newDuration = Double(bars) * secondsPerBar
+                                            binding.wrappedValue.duration = newDuration
+                                            binding.wrappedValue.barLength = bars
+                                            binding.wrappedValue.endTime = binding.wrappedValue.startTime + newDuration
+                                            AudioPreviewPlayer.shared.play(sample: binding.wrappedValue)
+                                        } label: {
+                                            Text("\(bars) bars")
+                                                .font(.system(size: LoSuite.Typography.caption2, weight: .medium))
+                                                .frame(height: 28)
+                                                .padding(.horizontal, 6)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .background(
+                                            binding.wrappedValue.barLength == bars
+                                                ? binding.wrappedValue.stemType.designColor
+                                                : LoSuite.Colors.elevatedSurface
+                                        )
+                                        .foregroundColor(
+                                            binding.wrappedValue.barLength == bars
+                                                ? .white
+                                                : LoSuite.Colors.textPrimary
+                                        )
+                                        .cornerRadius(LoSuite.Radius.small)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: LoSuite.Radius.small)
+                                                .stroke(
+                                                    binding.wrappedValue.barLength == bars
+                                                        ? binding.wrappedValue.stemType.designColor
+                                                        : LoSuite.Colors.bordersDividers,
+                                                    lineWidth: 1
+                                                )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Duration info (read-only for loops, editable for hits)
+                        VStack(alignment: .leading, spacing: LoSuite.Spacing.xs) {
+                            Text("Duration")
+                                .font(.system(size: LoSuite.Typography.caption))
+                                .foregroundColor(LoSuite.Colors.textSecondary)
+
+                            HStack(spacing: LoSuite.Spacing.sm) {
+                                Text(binding.wrappedValue.durationString)
+                                    .font(.system(size: LoSuite.Typography.body, weight: .medium, design: .monospaced))
+                                    .foregroundColor(LoSuite.Colors.textPrimary)
+
+                                if let bars = binding.wrappedValue.barLength {
+                                    Text("(\(bars) \(bars == 1 ? "bar" : "bars"))")
+                                        .font(.system(size: LoSuite.Typography.caption))
+                                        .foregroundColor(LoSuite.Colors.textSecondary)
+                                }
+                            }
+                        }
+
+                        // Duplicate button
+                        Button {
+                            let newSample = binding.wrappedValue.duplicate()
+                            samples.append(newSample)
+                            selectedSamples.insert(newSample.id)
+                            editingSampleID = newSample.id
+                        } label: {
+                            Label("Duplicate", systemImage: "plus.square.on.square")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                    .padding(.horizontal, LoSuite.Spacing.md)
+                    .padding(.bottom, LoSuite.Spacing.md)
+                }
+            }
+            .background(LoSuite.Colors.elevatedSurface)
+
+            // Audition Keyboard (for one-shots)
+            let hasHits = samples.contains { $0.category == .hit }
+            if hasHits {
+                SampleKeyboardView(samples: samples)
+                    .padding(.horizontal, LoSuite.Spacing.md)
+                    .padding(.vertical, LoSuite.Spacing.sm)
+            }
+
+            // Divider
+            Rectangle()
+                .fill(LoSuite.Colors.bordersDividers)
+                .frame(height: 1)
+
+            // BOTTOM: Sample Cards Grid
+            ScrollView {
+                VStack(spacing: LoSuite.Spacing.md) {
+                    ForEach(StemType.allCases, id: \.self) { stemType in
+                        let stemSamples = samples.filter { $0.stemType == stemType }
+                        if !stemSamples.isEmpty {
+                            StemSection(
+                                stemType: stemType,
+                                samples: stemSamples,
+                                isExpanded: expandedStems.contains(stemType),
+                                selectedSamples: $selectedSamples,
+                                editingSampleID: $editingSampleID,
+                                onToggleExpand: {
+                                    if expandedStems.contains(stemType) {
+                                        expandedStems.remove(stemType)
+                                    } else {
+                                        expandedStems.insert(stemType)
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
                 .padding(LoSuite.Spacing.md)
-                .background(LoSuite.Colors.panelSurface)
             }
+            .background(LoSuite.Colors.backgroundPrimary)
 
-            // Right: Detail panel (when editing)
-            if let editingID = editingSampleID,
-               let sampleIndex = samples.firstIndex(where: { $0.id == editingID }) {
-                SampleDetailPanel(
-                    sample: $samples[sampleIndex],
-                    nudgeGrid: $nudgeGrid,
-                    onDuplicate: {
-                        let newSample = samples[sampleIndex].duplicate()
-                        samples.append(newSample)
-                        selectedSamples.insert(newSample.id)
-                        editingSampleID = newSample.id
-                    },
-                    onClose: {
-                        editingSampleID = nil
-                    }
-                )
-                .frame(minWidth: 280, maxWidth: 320)
+            // Divider
+            Rectangle()
+                .fill(LoSuite.Colors.bordersDividers)
+                .frame(height: 1)
+
+            // Export bar
+            HStack {
+                Text("\(selectedSamples.count) of \(samples.count) selected")
+                    .font(.system(size: LoSuite.Typography.body))
+                    .foregroundColor(LoSuite.Colors.textSecondary)
+
+                Spacer()
+
+                Button("Open in LoOptimizer") {
+                    onOpenInLoOptimizer()
+                }
+                .disabled(selectedSamples.isEmpty)
+
+                Button("Export Selected") {
+                    let selected = samples.filter { selectedSamples.contains($0.id) }
+                    onExport(selected)
+                }
+                .disabled(selectedSamples.isEmpty)
+
+                Button("Export All") {
+                    onExportAll()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(LoSuite.Colors.accent)
             }
+            .padding(LoSuite.Spacing.md)
+            .background(LoSuite.Colors.panelSurface)
         }
         .onAppear {
             // Select all by default
             selectedSamples = Set(samples.map { $0.id })
+            // Auto-select first sample for waveform display
+            if editingSampleID == nil, let first = samples.first {
+                editingSampleID = first.id
+            }
         }
     }
 }
@@ -673,6 +1152,8 @@ struct SampleCard: View {
         .offset(y: isHovering ? -1 : 0)  // Subtle lift on hover per spec
         .animation(.easeOut(duration: 0.12), value: isHovering)
         .onTapGesture {
+            // Toggle playback on tap
+            player.togglePlay(sample: sample)
             onToggleSelect()
         }
         .onHover { hovering in
@@ -989,6 +1470,108 @@ struct SampleDetailPanel: View {
 
     private func playPreview() {
         player.play(sample: sample)
+    }
+}
+
+// MARK: - Virtual MIDI Keyboard
+
+struct MiniKeyboard: View {
+    let samples: [ExtractedSample]
+    let stemType: StemType
+    @State private var activeKey: Int? = nil
+
+    // Filter to just hits for this stem
+    private var hitSamples: [ExtractedSample] {
+        samples.filter { $0.stemType == stemType && $0.category == .hit }
+            .prefix(12)
+            .map { $0 }
+    }
+
+    // Key layout: white keys only for simplicity (C D E F G A B C D E F G)
+    private let keyCount = 12
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(0..<keyCount, id: \.self) { index in
+                let hasSample = index < hitSamples.count
+                let sample = hasSample ? hitSamples[index] : nil
+
+                Button {
+                    if let s = sample {
+                        activeKey = index
+                        AudioPreviewPlayer.shared.play(sample: s)
+                        // Reset active key after short delay
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            if activeKey == index { activeKey = nil }
+                        }
+                    }
+                } label: {
+                    VStack(spacing: 2) {
+                        Text(keyLabel(index))
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(activeKey == index ? .white : LoSuite.Colors.textSecondary)
+
+                        if hasSample {
+                            Circle()
+                                .fill(stemType.designColor)
+                                .frame(width: 6, height: 6)
+                        }
+                    }
+                    .frame(width: 28, height: 44)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(activeKey == index ? stemType.designColor : (hasSample ? LoSuite.Colors.elevatedSurface : LoSuite.Colors.panelSurface))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(hasSample ? stemType.designColor.opacity(0.5) : LoSuite.Colors.bordersDividers, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(!hasSample)
+            }
+        }
+    }
+
+    private func keyLabel(_ index: Int) -> String {
+        let keys = ["C", "D", "E", "F", "G", "A", "B", "C", "D", "E", "F", "G"]
+        return keys[index % keys.count]
+    }
+}
+
+struct SampleKeyboardView: View {
+    let samples: [ExtractedSample]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: LoSuite.Spacing.sm) {
+            Text("AUDITION KEYBOARD")
+                .font(.system(size: LoSuite.Typography.caption2, weight: .semibold))
+                .foregroundColor(LoSuite.Colors.textSecondary)
+
+            HStack(spacing: LoSuite.Spacing.lg) {
+                ForEach(StemType.allCases, id: \.self) { stemType in
+                    let stemSamples = samples.filter { $0.stemType == stemType }
+                    let hitCount = stemSamples.filter { $0.category == .hit }.count
+
+                    if hitCount > 0 {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 4) {
+                                Image(systemName: stemType.icon)
+                                    .font(.system(size: 10))
+                                    .foregroundColor(stemType.designColor)
+                                Text(stemType.shortName)
+                                    .font(.system(size: LoSuite.Typography.caption2, weight: .medium))
+                                    .foregroundColor(LoSuite.Colors.textSecondary)
+                            }
+                            MiniKeyboard(samples: samples, stemType: stemType)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(LoSuite.Spacing.md)
+        .background(LoSuite.Colors.panelSurface)
+        .cornerRadius(LoSuite.Radius.medium)
     }
 }
 

@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -22,6 +22,9 @@
 		A10000010000000000000014 /* AudioFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000014 /* AudioFile.swift */; };
 		A10000010000000000000015 /* QuantizationSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000015 /* QuantizationSettings.swift */; };
 		A10000010000000000000016 /* AudioPreviewPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000016 /* AudioPreviewPlayer.swift */; };
+		ADFDA4E22F43B21900A9FF78 /* LoopLifterProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADFDA4DF2F43B21900A9FF78 /* LoopLifterProject.swift */; };
+		ADFDA4E32F43B21900A9FF78 /* ProjectManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADFDA4E02F43B21900A9FF78 /* ProjectManager.swift */; };
+		ADFDA4E42F43B21900A9FF78 /* StemCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADFDA4E12F43B21900A9FF78 /* StemCache.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,14 +38,22 @@
 		A20000010000000000000008 /* SelfSimilarityAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelfSimilarityAnalyzer.swift; sourceTree = "<group>"; };
 		A20000010000000000000009 /* NoveltyDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoveltyDetector.swift; sourceTree = "<group>"; };
 		A20000010000000000000010 /* HitIsolator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HitIsolator.swift; sourceTree = "<group>"; };
-		A30000010000000000000001 /* LoopLifter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LoopLifter.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000010000000000000011 /* LoopLifter.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LoopLifter.entitlements; sourceTree = "<group>"; };
 		A20000010000000000000012 /* StemSeparator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StemSeparator.swift; sourceTree = "<group>"; };
 		A20000010000000000000013 /* AubioAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AubioAnalyzer.swift; sourceTree = "<group>"; };
 		A20000010000000000000014 /* AudioFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioFile.swift; sourceTree = "<group>"; };
 		A20000010000000000000015 /* QuantizationSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuantizationSettings.swift; sourceTree = "<group>"; };
 		A20000010000000000000016 /* AudioPreviewPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPreviewPlayer.swift; sourceTree = "<group>"; };
+		A30000010000000000000001 /* LoopLifter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LoopLifter.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AD6DB91D2F43708300B9F8B2 /* LoopLifter.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LoopLifter.entitlements; sourceTree = "<group>"; };
+		ADFDA4DF2F43B21900A9FF78 /* LoopLifterProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LoopLifterProject.swift; path = Project/LoopLifterProject.swift; sourceTree = "<group>"; };
+		ADFDA4E02F43B21900A9FF78 /* ProjectManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProjectManager.swift; path = Project/ProjectManager.swift; sourceTree = "<group>"; };
+		ADFDA4E12F43B21900A9FF78 /* StemCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StemCache.swift; path = Cache/StemCache.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		ADFDA4DD2F4371BB00A9FF78 /* Design */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Design; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A40000010000000000000001 /* Frameworks */ = {
@@ -66,8 +77,10 @@
 		A50000010000000000000002 /* LoopLifter */ = {
 			isa = PBXGroup;
 			children = (
+				ADFDA4DD2F4371BB00A9FF78 /* Design */,
 				A20000010000000000000001 /* LoopLifterApp.swift */,
 				A20000010000000000000002 /* ContentView.swift */,
+				AD6DB91D2F43708300B9F8B2 /* LoopLifter.entitlements */,
 				A20000010000000000000003 /* Assets.xcassets */,
 				A20000010000000000000011 /* LoopLifter.entitlements */,
 				A50000010000000000000004 /* Views */,
@@ -98,6 +111,9 @@
 		A50000010000000000000005 /* Core */ = {
 			isa = PBXGroup;
 			children = (
+				ADFDA4DF2F43B21900A9FF78 /* LoopLifterProject.swift */,
+				ADFDA4E02F43B21900A9FF78 /* ProjectManager.swift */,
+				ADFDA4E12F43B21900A9FF78 /* StemCache.swift */,
 				A50000010000000000000006 /* Models */,
 				A50000010000000000000007 /* Analysis */,
 				A50000010000000000000011 /* Audio */,
@@ -105,14 +121,6 @@
 				A50000010000000000000009 /* Export */,
 			);
 			path = Core;
-			sourceTree = "<group>";
-		};
-		A50000010000000000000011 /* Audio */ = {
-			isa = PBXGroup;
-			children = (
-				A20000010000000000000016 /* AudioPreviewPlayer.swift */,
-			);
-			path = Audio;
 			sourceTree = "<group>";
 		};
 		A50000010000000000000006 /* Models */ = {
@@ -158,6 +166,14 @@
 			path = Shared;
 			sourceTree = "<group>";
 		};
+		A50000010000000000000011 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000016 /* AudioPreviewPlayer.swift */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -173,6 +189,9 @@
 			);
 			dependencies = (
 			);
+			fileSystemSynchronizedGroups = (
+				ADFDA4DD2F4371BB00A9FF78 /* Design */,
+			);
 			name = LoopLifter;
 			productName = LoopLifter;
 			productReference = A30000010000000000000001 /* LoopLifter.app */;
@@ -186,7 +205,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1520;
-				LastUpgradeCheck = 1520;
+				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					A60000010000000000000001 = {
 						CreatedOnToolsVersion = 15.2;
@@ -235,6 +254,9 @@
 				A10000010000000000000007 /* ExtractedSample.swift in Sources */,
 				A10000010000000000000008 /* SelfSimilarityAnalyzer.swift in Sources */,
 				A10000010000000000000009 /* NoveltyDetector.swift in Sources */,
+				ADFDA4E22F43B21900A9FF78 /* LoopLifterProject.swift in Sources */,
+				ADFDA4E32F43B21900A9FF78 /* ProjectManager.swift in Sources */,
+				ADFDA4E42F43B21900A9FF78 /* StemCache.swift in Sources */,
 				A10000010000000000000010 /* HitIsolator.swift in Sources */,
 				A10000010000000000000012 /* StemSeparator.swift in Sources */,
 				A10000010000000000000013 /* AubioAnalyzer.swift in Sources */,
@@ -281,6 +303,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -305,6 +328,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -344,6 +368,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -361,6 +386,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -374,10 +400,12 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -402,10 +430,12 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";

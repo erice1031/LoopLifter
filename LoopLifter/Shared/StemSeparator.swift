@@ -115,17 +115,23 @@ struct StemSeparator {
 
     /// Get the real home directory (not sandbox container)
     static var realHomeDirectory: String {
-        // Try to get real home from environment or passwd
-        if let home = ProcessInfo.processInfo.environment["HOME"],
-           !home.contains("Containers") {
+        // First try passwd entry - most reliable
+        if let pw = getpwuid(getuid()) {
+            let home = String(cString: pw.pointee.pw_dir)
+            print("🏠 Home from passwd: \(home)")
             return home
         }
-        // Fall back to passwd entry
-        if let pw = getpwuid(getuid()) {
-            return String(cString: pw.pointee.pw_dir)
+        // Try environment variable
+        if let home = ProcessInfo.processInfo.environment["HOME"] {
+            print("🏠 Home from env: \(home)")
+            if !home.contains("Containers") {
+                return home
+            }
         }
         // Last resort
-        return NSHomeDirectory()
+        let home = NSHomeDirectory()
+        print("🏠 Home from NSHomeDirectory: \(home)")
+        return home
     }
 
     /// Path to the Demucs wrapper script (virtual environment)
@@ -145,6 +151,13 @@ struct StemSeparator {
         print("🔍 Wrapper path: \(demucsWrapperPath)")
         print("🔍 Venv path: \(demucsVenvPath)")
 
+        // Check if paths exist using shell to avoid sandbox issues
+        let checkPaths = [demucsVenvPath, demucsWrapperPath]
+        for path in checkPaths {
+            let exists = FileManager.default.fileExists(atPath: path)
+            print("🔍 FileManager check \(path): \(exists)")
+        }
+
         // First check for the wrapper script (preferred method)
         if FileManager.default.fileExists(atPath: demucsWrapperPath) {
             print("✅ Found wrapper script")
@@ -156,6 +169,29 @@ struct StemSeparator {
             print("✅ Found venv demucs")
             return true
         }
+
+        // Try using /bin/bash to check - bypasses some sandbox issues
+        do {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/bash")
+            process.arguments = ["-c", "test -f '\(demucsVenvPath)' && echo 'found'"]
+
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = pipe
+
+            try process.run()
+            process.waitUntilExit()
+
+            let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+            if output.contains("found") {
+                print("✅ Found venv demucs via bash check")
+                return true
+            }
+        } catch {
+            print("⚠️ Bash check failed: \(error)")
+        }
+
         print("⚠️ Demucs not found in venv, checking system...")
 
         // Finally try system-wide installation
@@ -171,8 +207,11 @@ struct StemSeparator {
             try process.run()
             process.waitUntilExit()
 
-            return process.terminationStatus == 0
+            let found = process.terminationStatus == 0
+            print("🔍 System python demucs check: \(found)")
+            return found
         } catch {
+            print("⚠️ System check failed: \(error)")
             return false
         }
     }
