@@ -311,6 +311,9 @@ struct SampleDetailPanel: View {
 
     var player: AudioPreviewPlayer { AudioPreviewPlayer.shared }
 
+    // For end time adjustment (hits only)
+    @State private var endTimeOffset: TimeInterval = 0
+
     private var stepSize: TimeInterval {
         sample.nudgeStepSize(for: nudgeGrid)
     }
@@ -324,175 +327,234 @@ struct SampleDetailPanel: View {
         }
     }
 
+    private var isHit: Bool {
+        sample.category == .hit
+    }
+
+    private var audioDuration: TimeInterval {
+        // Estimate from audio file or use a reasonable default
+        sample.effectiveEndTime + 30  // Allow nudging forward
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Header
-            HStack {
-                Image(systemName: sample.category.icon)
-                    .foregroundColor(stemColor)
-                    .font(.title2)
-
-                VStack(alignment: .leading) {
-                    Text(sample.name)
-                        .font(.headline)
-                    Text(sample.stemType.displayName)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                Button {
-                    onClose()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-
-            Divider()
-
-            // Position info
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Position")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                // Header
                 HStack {
+                    Image(systemName: sample.category.icon)
+                        .foregroundColor(stemColor)
+                        .font(.title2)
+
                     VStack(alignment: .leading) {
-                        Text("Start")
-                            .font(.caption2)
+                        Text(sample.name)
+                            .font(.headline)
+                        Text("\(sample.stemType.displayName) \(sample.category.rawValue)")
+                            .font(.caption)
                             .foregroundColor(.secondary)
-                        Text(sample.positionString(for: sample.effectiveStartTime))
-                            .font(.title3)
-                            .fontWeight(.medium)
-                            .monospacedDigit()
                     }
 
                     Spacer()
 
-                    VStack(alignment: .trailing) {
-                        Text("Offset")
-                            .font(.caption2)
+                    // Play button
+                    Button {
+                        playPreview()
+                    } label: {
+                        Image(systemName: player.isPlaying(sample: sample) ? "stop.fill" : "play.fill")
+                            .font(.title3)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(stemColor)
+
+                    Button {
+                        onClose()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
-                        Text(String(format: "%+.3fs", sample.nudgeOffset))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                // Waveform view
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Waveform")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    WaveformView(
+                        audioURL: sample.audioURL,
+                        startTime: sample.effectiveStartTime,
+                        endTime: sample.effectiveEndTime,
+                        totalDuration: audioDuration,
+                        accentColor: stemColor
+                    )
+                }
+
+                Divider()
+
+                // Grid resolution picker
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Grid")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    HStack(spacing: 6) {
+                        ForEach(NudgeGrid.allCases, id: \.self) { grid in
+                            Button {
+                                nudgeGrid = grid
+                            } label: {
+                                Text(grid.displayName)
+                                    .font(.caption)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                            }
+                            .buttonStyle(.plain)
+                            .background(nudgeGrid == grid ? stemColor : Color(NSColor.controlBackgroundColor))
+                            .foregroundColor(nudgeGrid == grid ? .white : .primary)
+                            .cornerRadius(4)
+                        }
+
+                        Spacer()
+
+                        Text("\(Int(sample.tempo)) BPM")
                             .font(.caption)
-                            .foregroundColor(sample.nudgeOffset != 0 ? .orange : .secondary)
-                            .monospacedDigit()
+                            .foregroundColor(.secondary)
                     }
                 }
-            }
-            .padding()
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(8)
 
-            // Grid resolution picker
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Grid Resolution")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                // Knob and time controls
+                HStack(alignment: .top, spacing: 20) {
+                    // Rotary knob for start time nudge
+                    VStack(spacing: 4) {
+                        RotaryKnob(
+                            value: $sample.nudgeOffset,
+                            range: -30...30,
+                            step: stepSize,
+                            sensitivity: 0.3,
+                            label: "Start",
+                            valueFormatter: { String(format: "%+.3fs", $0) },
+                            accentColor: stemColor,
+                            onChange: { playPreview() }
+                        )
 
-                HStack(spacing: 8) {
-                    ForEach(NudgeGrid.allCases, id: \.self) { grid in
+                        // Reset button
                         Button {
-                            nudgeGrid = grid
+                            sample.nudgeOffset = 0
+                            playPreview()
                         } label: {
-                            Text(grid.displayName)
-                                .font(.caption)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
+                            Text("Reset")
+                                .font(.caption2)
                         }
                         .buttonStyle(.plain)
-                        .background(nudgeGrid == grid ? stemColor : Color(NSColor.controlBackgroundColor))
-                        .foregroundColor(nudgeGrid == grid ? .white : .primary)
-                        .cornerRadius(6)
+                        .foregroundColor(.secondary)
+                        .opacity(sample.nudgeOffset != 0 ? 1 : 0.3)
+                        .disabled(sample.nudgeOffset == 0)
+                    }
+
+                    // Time info
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Start time
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Start Time")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+
+                            HStack {
+                                Text(sample.positionString(for: sample.effectiveStartTime))
+                                    .font(.title2)
+                                    .fontWeight(.medium)
+                                    .monospacedDigit()
+
+                                DraggableValue(
+                                    value: $sample.nudgeOffset,
+                                    range: -30...30,
+                                    step: stepSize,
+                                    sensitivity: 0.5,
+                                    formatter: { String(format: "%+.3f", $0) },
+                                    suffix: "s",
+                                    accentColor: stemColor,
+                                    onChange: { playPreview() }
+                                )
+                            }
+                        }
+
+                        // End time (for hits, allow adjustment)
+                        if isHit {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Duration")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+
+                                DraggableValue(
+                                    value: Binding(
+                                        get: { sample.duration },
+                                        set: { newDuration in
+                                            sample.duration = max(0.01, newDuration)
+                                            sample.endTime = sample.startTime + sample.duration
+                                        }
+                                    ),
+                                    range: 0.01...2.0,
+                                    step: 0.01,
+                                    sensitivity: 0.3,
+                                    formatter: { String(format: "%.3f", $0) },
+                                    suffix: "s",
+                                    accentColor: stemColor,
+                                    onChange: { playPreview() }
+                                )
+                            }
+                        } else {
+                            // For loops, show duration as read-only
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Duration")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+
+                                HStack(spacing: 4) {
+                                    Text(sample.durationString)
+                                        .font(.body)
+                                        .monospacedDigit()
+
+                                    if let bars = sample.barLength {
+                                        Text("(\(bars) \(bars == 1 ? "bar" : "bars"))")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-            }
+                .padding()
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(8)
 
-            // Nudge controls
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Nudge Start Time")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                Divider()
 
+                // Action buttons
                 HStack(spacing: 12) {
-                    // Step back
+                    // Duplicate button
                     Button {
-                        sample.nudgeOffset -= stepSize
-                        playPreview()
+                        onDuplicate()
                     } label: {
-                        Image(systemName: "chevron.left")
-                            .frame(width: 40, height: 40)
+                        Label("Duplicate", systemImage: "plus.square.on.square")
                     }
-                    .buttonStyle(.bordered)
-                    .keyboardShortcut(.leftArrow, modifiers: [])
+                    .buttonStyle(.borderedProminent)
+                    .tint(stemColor)
 
-                    // Reset
-                    Button {
-                        sample.nudgeOffset = 0
-                        playPreview()
-                    } label: {
-                        Image(systemName: "arrow.counterclockwise")
-                            .frame(width: 40, height: 40)
+                    Spacer()
+                }
+
+                // Info footer
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Confidence: \(sample.confidencePercent)%")
+                    if sample.nudgeOffset != 0 {
+                        Text("Original start: \(String(format: "%.2f", sample.startTime))s")
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(sample.nudgeOffset == 0)
-
-                    // Step forward
-                    Button {
-                        sample.nudgeOffset += stepSize
-                        playPreview()
-                    } label: {
-                        Image(systemName: "chevron.right")
-                            .frame(width: 40, height: 40)
-                    }
-                    .buttonStyle(.bordered)
-                    .keyboardShortcut(.rightArrow, modifiers: [])
                 }
-
-                Text("Step: \(String(format: "%.3fs", stepSize)) (\(nudgeGrid.displayName) note at \(Int(sample.tempo)) BPM)")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                .font(.caption2)
+                .foregroundColor(.secondary)
             }
-
-            Divider()
-
-            // Action buttons
-            HStack(spacing: 12) {
-                // Play button
-                Button {
-                    playPreview()
-                } label: {
-                    Label("Preview", systemImage: "play.fill")
-                }
-                .buttonStyle(.bordered)
-
-                // Duplicate button
-                Button {
-                    onDuplicate()
-                } label: {
-                    Label("Duplicate", systemImage: "plus.square.on.square")
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(stemColor)
-            }
-
-            Spacer()
-
-            // Info footer
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Tempo: \(Int(sample.tempo)) BPM")
-                Text("Duration: \(sample.durationString)")
-                if let bars = sample.barLength {
-                    Text("Length: \(bars) \(bars == 1 ? "bar" : "bars")")
-                }
-            }
-            .font(.caption2)
-            .foregroundColor(.secondary)
+            .padding()
         }
-        .padding()
         .background(Color(NSColor.windowBackgroundColor))
     }
 
