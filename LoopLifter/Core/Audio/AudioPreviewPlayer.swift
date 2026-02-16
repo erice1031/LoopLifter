@@ -42,9 +42,13 @@ class AudioPreviewPlayer {
             return
         }
 
+        // Use effective times (with nudge offset applied)
+        let playStartTime = sample.effectiveStartTime
+        let playEndTime = sample.effectiveEndTime
+
         print("🎵 Sample: \(sample.name)")
         print("   URL: \(url.lastPathComponent)")
-        print("   Time: \(sample.startTime)s - \(sample.endTime)s")
+        print("   Time: \(playStartTime)s - \(playEndTime)s\(sample.nudgeOffset != 0 ? " (nudged \(String(format: "%+.3f", sample.nudgeOffset))s)" : "")")
 
         do {
             // Load audio file
@@ -57,9 +61,9 @@ class AudioPreviewPlayer {
 
             print("   Audio duration: \(audioDuration)s, Sample rate: \(sampleRate)")
 
-            // Calculate frame positions
-            var startFrame = AVAudioFramePosition(sample.startTime * sampleRate)
-            let endFrame = AVAudioFramePosition(min(sample.endTime, audioDuration) * sampleRate)
+            // Calculate frame positions using effective times
+            var startFrame = AVAudioFramePosition(max(0, playStartTime) * sampleRate)
+            let endFrame = AVAudioFramePosition(min(playEndTime, audioDuration) * sampleRate)
 
             // Validate
             if startFrame >= audioFile.length {

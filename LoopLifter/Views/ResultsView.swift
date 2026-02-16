@@ -8,68 +8,92 @@
 import SwiftUI
 
 struct ResultsView: View {
-    let samples: [ExtractedSample]
+    @Binding var samples: [ExtractedSample]
     var onExport: ([ExtractedSample]) -> Void
     var onExportAll: () -> Void
     var onOpenInLoOptimizer: () -> Void
 
     @State private var selectedSamples: Set<UUID> = []
     @State private var expandedStems: Set<StemType> = Set(StemType.allCases)
+    @State private var editingSampleID: UUID? = nil
+    @State private var nudgeGrid: NudgeGrid = .eighth
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Results list
-            ScrollView {
-                VStack(spacing: 16) {
-                    ForEach(StemType.allCases, id: \.self) { stemType in
-                        let stemSamples = samples.filter { $0.stemType == stemType }
-                        if !stemSamples.isEmpty {
-                            StemSection(
-                                stemType: stemType,
-                                samples: stemSamples,
-                                isExpanded: expandedStems.contains(stemType),
-                                selectedSamples: $selectedSamples,
-                                onToggleExpand: {
-                                    if expandedStems.contains(stemType) {
-                                        expandedStems.remove(stemType)
-                                    } else {
-                                        expandedStems.insert(stemType)
+        HSplitView {
+            // Left: Results list
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(spacing: 16) {
+                        ForEach(StemType.allCases, id: \.self) { stemType in
+                            let stemSamples = samples.filter { $0.stemType == stemType }
+                            if !stemSamples.isEmpty {
+                                StemSection(
+                                    stemType: stemType,
+                                    samples: stemSamples,
+                                    isExpanded: expandedStems.contains(stemType),
+                                    selectedSamples: $selectedSamples,
+                                    editingSampleID: $editingSampleID,
+                                    onToggleExpand: {
+                                        if expandedStems.contains(stemType) {
+                                            expandedStems.remove(stemType)
+                                        } else {
+                                            expandedStems.insert(stemType)
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
+                    .padding()
+                }
+
+                Divider()
+
+                // Export bar
+                HStack {
+                    Text("\(selectedSamples.count) of \(samples.count) selected")
+                        .foregroundColor(.secondary)
+
+                    Spacer()
+
+                    Button("Open in LoOptimizer") {
+                        onOpenInLoOptimizer()
+                    }
+                    .disabled(selectedSamples.isEmpty)
+
+                    Button("Export Selected") {
+                        let selected = samples.filter { selectedSamples.contains($0.id) }
+                        onExport(selected)
+                    }
+                    .disabled(selectedSamples.isEmpty)
+
+                    Button("Export All") {
+                        onExportAll()
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
                 .padding()
+                .background(Color(NSColor.controlBackgroundColor))
             }
 
-            Divider()
-
-            // Export bar
-            HStack {
-                Text("\(selectedSamples.count) of \(samples.count) selected")
-                    .foregroundColor(.secondary)
-
-                Spacer()
-
-                Button("Open in LoOptimizer") {
-                    onOpenInLoOptimizer()
-                }
-                .disabled(selectedSamples.isEmpty)
-
-                Button("Export Selected") {
-                    let selected = samples.filter { selectedSamples.contains($0.id) }
-                    onExport(selected)
-                }
-                .disabled(selectedSamples.isEmpty)
-
-                Button("Export All") {
-                    onExportAll()
-                }
-                .buttonStyle(.borderedProminent)
+            // Right: Detail panel (when editing)
+            if let editingID = editingSampleID,
+               let sampleIndex = samples.firstIndex(where: { $0.id == editingID }) {
+                SampleDetailPanel(
+                    sample: $samples[sampleIndex],
+                    nudgeGrid: $nudgeGrid,
+                    onDuplicate: {
+                        let newSample = samples[sampleIndex].duplicate()
+                        samples.append(newSample)
+                        selectedSamples.insert(newSample.id)
+                        editingSampleID = newSample.id
+                    },
+                    onClose: {
+                        editingSampleID = nil
+                    }
+                )
+                .frame(minWidth: 280, maxWidth: 320)
             }
-            .padding()
-            .background(Color(NSColor.controlBackgroundColor))
         }
         .onAppear {
             // Select all by default
@@ -85,6 +109,7 @@ struct StemSection: View {
     let samples: [ExtractedSample]
     let isExpanded: Bool
     @Binding var selectedSamples: Set<UUID>
+    @Binding var editingSampleID: UUID?
     var onToggleExpand: () -> Void
 
     private var allSelected: Bool {
@@ -139,14 +164,19 @@ struct StemSection: View {
                         SampleCard(
                             sample: sample,
                             isSelected: selectedSamples.contains(sample.id),
-                            stemColor: stemColor
-                        ) {
-                            if selectedSamples.contains(sample.id) {
-                                selectedSamples.remove(sample.id)
-                            } else {
-                                selectedSamples.insert(sample.id)
+                            isEditing: editingSampleID == sample.id,
+                            stemColor: stemColor,
+                            onToggleSelect: {
+                                if selectedSamples.contains(sample.id) {
+                                    selectedSamples.remove(sample.id)
+                                } else {
+                                    selectedSamples.insert(sample.id)
+                                }
+                            },
+                            onEdit: {
+                                editingSampleID = sample.id
                             }
-                        }
+                        )
                     }
                 }
                 .padding(.leading, 24)
@@ -172,8 +202,10 @@ struct StemSection: View {
 struct SampleCard: View {
     let sample: ExtractedSample
     let isSelected: Bool
+    let isEditing: Bool
     let stemColor: Color
-    var onToggle: () -> Void
+    var onToggleSelect: () -> Void
+    var onEdit: () -> Void
 
     @State private var isHovering = false
     var player: AudioPreviewPlayer { AudioPreviewPlayer.shared }
@@ -190,6 +222,16 @@ struct SampleCard: View {
                     .lineLimit(1)
 
                 Spacer()
+
+                // Edit button
+                Button {
+                    onEdit()
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .opacity(isHovering || isEditing ? 1 : 0.3)
 
                 // Play button
                 Button {
@@ -226,29 +268,22 @@ struct SampleCard: View {
                     .foregroundColor(.secondary)
             }
 
-            // Confidence indicator
-            HStack(spacing: 4) {
-                Text("Confidence:")
+            // Position indicator (shows nudge offset if any)
+            if sample.nudgeOffset != 0 {
+                Text("Start: \(sample.positionString(for: sample.effectiveStartTime))")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
-
-                ProgressView(value: sample.confidence, total: 1.0)
-                    .tint(confidenceColor)
-
-                Text("\(sample.confidencePercent)%")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.orange)
             }
         }
         .padding(12)
-        .background(isSelected ? stemColor.opacity(0.15) : Color(NSColor.controlBackgroundColor))
+        .background(isEditing ? stemColor.opacity(0.25) : (isSelected ? stemColor.opacity(0.15) : Color(NSColor.controlBackgroundColor)))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(isSelected ? stemColor : Color.clear, lineWidth: 2)
+                .stroke(isEditing ? stemColor : (isSelected ? stemColor.opacity(0.5) : Color.clear), lineWidth: isEditing ? 3 : 2)
         )
         .cornerRadius(8)
         .onTapGesture {
-            onToggle()
+            onToggleSelect()
         }
         .onHover { hovering in
             isHovering = hovering
@@ -266,16 +301,220 @@ struct SampleCard: View {
     }
 }
 
-#Preview {
-    ResultsView(
-        samples: [
-            ExtractedSample(name: "Main Loop", category: .loop, stemType: .drums, duration: 2.0, barLength: 2, confidence: 0.95),
-            ExtractedSample(name: "Fill 1", category: .fill, stemType: .drums, duration: 0.5, barLength: nil, confidence: 0.82),
-            ExtractedSample(name: "Kick", category: .hit, stemType: .drums, duration: 0.1, barLength: nil, confidence: 0.98),
-        ],
-        onExport: { _ in },
-        onExportAll: { },
-        onOpenInLoOptimizer: { }
-    )
+// MARK: - Sample Detail Panel
+
+struct SampleDetailPanel: View {
+    @Binding var sample: ExtractedSample
+    @Binding var nudgeGrid: NudgeGrid
+    var onDuplicate: () -> Void
+    var onClose: () -> Void
+
+    var player: AudioPreviewPlayer { AudioPreviewPlayer.shared }
+
+    private var stepSize: TimeInterval {
+        sample.nudgeStepSize(for: nudgeGrid)
+    }
+
+    private var stemColor: Color {
+        switch sample.stemType {
+        case .drums: return .orange
+        case .bass: return .purple
+        case .vocals: return .green
+        case .other: return .blue
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header
+            HStack {
+                Image(systemName: sample.category.icon)
+                    .foregroundColor(stemColor)
+                    .font(.title2)
+
+                VStack(alignment: .leading) {
+                    Text(sample.name)
+                        .font(.headline)
+                    Text(sample.stemType.displayName)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Button {
+                    onClose()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Divider()
+
+            // Position info
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Position")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("Start")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text(sample.positionString(for: sample.effectiveStartTime))
+                            .font(.title3)
+                            .fontWeight(.medium)
+                            .monospacedDigit()
+                    }
+
+                    Spacer()
+
+                    VStack(alignment: .trailing) {
+                        Text("Offset")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text(String(format: "%+.3fs", sample.nudgeOffset))
+                            .font(.caption)
+                            .foregroundColor(sample.nudgeOffset != 0 ? .orange : .secondary)
+                            .monospacedDigit()
+                    }
+                }
+            }
+            .padding()
+            .background(Color(NSColor.controlBackgroundColor))
+            .cornerRadius(8)
+
+            // Grid resolution picker
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Grid Resolution")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                HStack(spacing: 8) {
+                    ForEach(NudgeGrid.allCases, id: \.self) { grid in
+                        Button {
+                            nudgeGrid = grid
+                        } label: {
+                            Text(grid.displayName)
+                                .font(.caption)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.plain)
+                        .background(nudgeGrid == grid ? stemColor : Color(NSColor.controlBackgroundColor))
+                        .foregroundColor(nudgeGrid == grid ? .white : .primary)
+                        .cornerRadius(6)
+                    }
+                }
+            }
+
+            // Nudge controls
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Nudge Start Time")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                HStack(spacing: 12) {
+                    // Step back
+                    Button {
+                        sample.nudgeOffset -= stepSize
+                        playPreview()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .frame(width: 40, height: 40)
+                    }
+                    .buttonStyle(.bordered)
+                    .keyboardShortcut(.leftArrow, modifiers: [])
+
+                    // Reset
+                    Button {
+                        sample.nudgeOffset = 0
+                        playPreview()
+                    } label: {
+                        Image(systemName: "arrow.counterclockwise")
+                            .frame(width: 40, height: 40)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(sample.nudgeOffset == 0)
+
+                    // Step forward
+                    Button {
+                        sample.nudgeOffset += stepSize
+                        playPreview()
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .frame(width: 40, height: 40)
+                    }
+                    .buttonStyle(.bordered)
+                    .keyboardShortcut(.rightArrow, modifiers: [])
+                }
+
+                Text("Step: \(String(format: "%.3fs", stepSize)) (\(nudgeGrid.displayName) note at \(Int(sample.tempo)) BPM)")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            Divider()
+
+            // Action buttons
+            HStack(spacing: 12) {
+                // Play button
+                Button {
+                    playPreview()
+                } label: {
+                    Label("Preview", systemImage: "play.fill")
+                }
+                .buttonStyle(.bordered)
+
+                // Duplicate button
+                Button {
+                    onDuplicate()
+                } label: {
+                    Label("Duplicate", systemImage: "plus.square.on.square")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(stemColor)
+            }
+
+            Spacer()
+
+            // Info footer
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Tempo: \(Int(sample.tempo)) BPM")
+                Text("Duration: \(sample.durationString)")
+                if let bars = sample.barLength {
+                    Text("Length: \(bars) \(bars == 1 ? "bar" : "bars")")
+                }
+            }
+            .font(.caption2)
+            .foregroundColor(.secondary)
+        }
+        .padding()
+        .background(Color(NSColor.windowBackgroundColor))
+    }
+
+    private func playPreview() {
+        player.play(sample: sample)
+    }
+}
+
+struct ResultsView_Previews: PreviewProvider {
+    @State static var samples = [
+        ExtractedSample(name: "Main Loop", category: .loop, stemType: .drums, duration: 2.0, barLength: 2, confidence: 0.95),
+        ExtractedSample(name: "Fill 1", category: .fill, stemType: .drums, duration: 0.5, barLength: nil, confidence: 0.82),
+        ExtractedSample(name: "Kick", category: .hit, stemType: .drums, duration: 0.1, barLength: nil, confidence: 0.98),
+    ]
+
+    static var previews: some View {
+        ResultsView(
+            samples: $samples,
+            onExport: { _ in },
+            onExportAll: { },
+            onOpenInLoOptimizer: { }
+        )
+    }
 }
 

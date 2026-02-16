@@ -108,7 +108,7 @@ struct ContentView: View {
 
             case .complete:
                 ResultsView(
-                    samples: extractedSamples,
+                    samples: $extractedSamples,
                     onExport: exportSamples,
                     onExportAll: exportAllSamples,
                     onOpenInLoOptimizer: openInLoOptimizer
@@ -243,6 +243,7 @@ struct ContentView: View {
                     sample.startTime = onset
                     sample.endTime = onset + hitDuration
                     sample.audioURL = stemURL
+                    sample.tempo = tempo
                     allSamples.append(sample)
                 }
                 print("   Created \(min(8, sortedOnsets.count)) hits for \(stemURL.lastPathComponent)")
@@ -270,6 +271,7 @@ struct ContentView: View {
                         sample.startTime = quantizedStart
                         sample.endTime = quantizedStart + twoBarDuration
                         sample.audioURL = stemURL
+                        sample.tempo = tempo
                         allSamples.append(sample)
                         print("   Loop: \(String(format: "%.2f", quantizedStart))s - \(String(format: "%.2f", quantizedStart + twoBarDuration))s")
                     }
