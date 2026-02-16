@@ -774,6 +774,15 @@ struct SampleDetailPanel: View {
 
                 // Action buttons
                 HStack(spacing: 12) {
+                    // Reset to default button
+                    Button {
+                        resetToDefault()
+                    } label: {
+                        Label("Reset", systemImage: "arrow.counterclockwise")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!hasChanges)
+
                     // Duplicate button
                     Button {
                         onDuplicate()
@@ -799,6 +808,20 @@ struct SampleDetailPanel: View {
             .padding()
         }
         .background(Color(NSColor.windowBackgroundColor))
+    }
+
+    private var hasChanges: Bool {
+        sample.nudgeOffset != 0
+    }
+
+    private func resetToDefault() {
+        sample.nudgeOffset = 0
+        // Reset duration to original (calculated from original end - start)
+        let originalDuration = sample.endTime - sample.startTime
+        if originalDuration > 0 {
+            sample.duration = originalDuration
+        }
+        playPreview()
     }
 
     private func playPreview() {
