@@ -75,19 +75,27 @@ func findEnergyOnset(in url: URL, windowDuration: Double = 4.0, chunkDuration: D
     }
 }
 
+struct ExportResult: Equatable {
+    let successCount: Int
+    let failCount: Int
+    let folder: URL?
+}
+
 struct ContentView: View {
     @State private var analysisState: AnalysisState = .idle
     @State private var extractedSamples: [ExtractedSample] = []
     @State private var audioURL: URL?
     @State private var isTargeted = false
     @State private var detectedTempo: Double = 120.0
+    @State private var exportToast: ExportResult? = nil
+    @State private var isExporting = false
+    @State private var exportDismissTask: Task<Void, Never>? = nil
+    @State private var showExportSheet = false
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             headerBar
 
-            // Main content
             switch analysisState {
             case .idle:
                 DropZoneView(isTargeted: $isTargeted) { url in
@@ -96,94 +104,237 @@ struct ContentView: View {
                 }
 
             case .separating(let progress):
-                ProgressView("Separating stems...", value: progress, total: 1.0)
-                    .padding(40)
+                processingView(label: "Separating stems...", progress: progress)
 
             case .analyzing(let stem, let progress):
-                VStack(spacing: 16) {
-                    Text("Analyzing \(stem)...")
-                        .font(.headline)
-                    ProgressView(value: progress, total: 1.0)
-                }
-                .padding(40)
+                processingView(label: "Analyzing \(stem)...", progress: progress)
 
             case .complete:
                 ResultsView(
                     samples: $extractedSamples,
-                    onExport: exportSamples,
-                    onExportAll: exportAllSamples,
+                    onExport: { samples in
+                        showExportSheet = true
+                        return nil  // toast handled via sheet callback
+                    },
+                    onExportAll: { showExportSheet = true; return nil },
                     onOpenInLoOptimizer: openInLoOptimizer
                 )
 
             case .error(let message):
-                VStack(spacing: 16) {
+                VStack(spacing: LoSuite.Spacing.md) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.system(size: 48))
                         .foregroundColor(.orange)
                     Text("Error")
-                        .font(.headline)
+                        .font(.system(size: LoSuite.Typography.h2, weight: .semibold))
+                        .foregroundColor(LoSuite.Colors.textPrimary)
                     Text(message)
-                        .foregroundColor(.secondary)
-                    Button("Try Again") {
-                        analysisState = .idle
-                    }
+                        .font(.system(size: LoSuite.Typography.body))
+                        .foregroundColor(LoSuite.Colors.textSecondary)
+                        .multilineTextAlignment(.center)
+                    Button("Try Again") { analysisState = .idle }
                 }
                 .padding(40)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(LoSuite.Colors.backgroundPrimary)
             }
         }
         .frame(minWidth: 800, minHeight: 600)
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(LoSuite.Colors.backgroundPrimary)
+        .overlay(alignment: .bottom) {
+            if let toast = exportToast {
+                ExportToastView(result: toast) { dismissExportToast() }
+                    .padding(.bottom, LoSuite.Spacing.md)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(LoSuite.Motion.normal, value: exportToast != nil)
+        .sheet(isPresented: $showExportSheet) {
+            ExportSheet(
+                samples: extractedSamples,
+                songName: audioURL?.deletingPathExtension().lastPathComponent ?? "Untitled",
+                tempo: detectedTempo,
+                onExport: { format in await runExport(format: format) },
+                onCancel: {}
+            )
+        }
+    }
+
+    // MARK: - Processing View
+
+    @ViewBuilder
+    private func processingView(label: String, progress: Double) -> some View {
+        VStack(spacing: LoSuite.Spacing.md) {
+            ProgressView(value: progress, total: 1.0)
+                .progressViewStyle(.linear)
+                .tint(LoSuite.Colors.accent)
+                .frame(maxWidth: 340)
+            Text(label)
+                .font(.system(size: LoSuite.Typography.body))
+                .foregroundColor(LoSuite.Colors.textSecondary)
+        }
+        .padding(40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(LoSuite.Colors.backgroundPrimary)
     }
 
     // MARK: - Header
 
     private var headerBar: some View {
-        HStack {
-            Image(systemName: "waveform.circle.fill")
-                .font(.title)
-                .foregroundColor(.accentColor)
+        HStack(spacing: 0) {
 
-            Text("LoopLifter")
-                .font(.title2)
-                .fontWeight(.semibold)
+            // ── Left: logo + track info ──────────────────────────────────
+            VStack(alignment: .leading, spacing: 2) {
+                Text("LoopLifter")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(LoSuite.Colors.textPrimary)
+                if let url = audioURL {
+                    HStack(spacing: 5) {
+                        Text(url.lastPathComponent)
+                        Text("•")
+                        Text("BPM \(Int(detectedTempo))")
+                        if let projectName = ProjectManager.shared.currentProject?.name {
+                            Text("•")
+                            Text(projectName)
+                        }
+                    }
+                    .font(.system(size: LoSuite.Typography.monoData, design: .monospaced))
+                    .foregroundColor(LoSuite.Colors.textSecondary)
+                } else {
+                    Text("AI Sample Pack Generator")
+                        .font(.system(size: 11))
+                        .foregroundColor(LoSuite.Colors.textSecondary)
+                }
+            }
+            .padding(.horizontal, LoSuite.Spacing.md)
 
-            // Show project name if loaded
-            if let projectName = ProjectManager.shared.currentProject?.name {
-                Text("—")
-                    .foregroundColor(.secondary)
-                Text(projectName)
-                    .foregroundColor(.secondary)
+            Spacer()
+
+            // ── Center: workflow step pills ──────────────────────────────
+            HStack(spacing: 3) {
+                workflowStepPill("IMPORT",   phaseIndex: 0)
+                workflowArrow()
+                workflowStepPill("SEPARATE", phaseIndex: 1)
+                workflowArrow()
+                workflowStepPill("ANALYZE",  phaseIndex: 2)
+                workflowArrow()
+                workflowStepPill("EXTRACT",  phaseIndex: 3)
             }
 
             Spacer()
 
-            // Open Project button (always visible)
-            Button {
-                openProject()
-            } label: {
-                Label("Open", systemImage: "folder")
-            }
-
-            if audioURL != nil && analysisState == .complete {
-                // Save Project button
-                Button {
-                    saveProject()
-                } label: {
-                    Label("Save", systemImage: "square.and.arrow.down")
+            // ── Right: file actions + export ─────────────────────────────
+            HStack(spacing: LoSuite.Spacing.sm) {
+                Button { openProject() } label: {
+                    Image(systemName: "folder")
+                        .font(.system(size: 14))
                 }
+                .buttonStyle(.plain)
+                .foregroundColor(LoSuite.Colors.textSecondary)
+                .help("Open Project")
 
-                Button {
-                    analysisState = .idle
-                    extractedSamples = []
-                    audioURL = nil
-                    ProjectManager.shared.closeProject()
-                } label: {
-                    Label("New", systemImage: "plus")
+                if analysisState == .complete {
+                    Button { saveProject() } label: {
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.system(size: 14))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(LoSuite.Colors.textSecondary)
+                    .help("Save Project")
+
+                    Button {
+                        analysisState = .idle
+                        extractedSamples = []
+                        audioURL = nil
+                        ProjectManager.shared.closeProject()
+                    } label: {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 14))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(LoSuite.Colors.textSecondary)
+                    .help("New Project")
+
+                    Rectangle()
+                        .fill(LoSuite.Colors.bordersDividers)
+                        .frame(width: 1, height: 20)
+                        .padding(.horizontal, 4)
+
+                    Button("Send to LoOptimizer") { openInLoOptimizer() }
+                        .buttonStyle(.plain)
+                        .font(.system(size: LoSuite.Typography.body))
+                        .foregroundColor(LoSuite.Colors.textSecondary)
+
+                    Button(isExporting ? "Exporting…" : "Export Pack") {
+                        showExportSheet = true
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: LoSuite.Typography.body, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 7)
+                    .background(isExporting
+                        ? LoSuite.Colors.accent.opacity(0.6)
+                        : LoSuite.Colors.accent)
+                    .clipShape(RoundedRectangle(cornerRadius: LoSuite.Radius.md))
+                    .disabled(isExporting)
                 }
             }
+            .padding(.horizontal, LoSuite.Spacing.md)
         }
-        .padding()
-        .background(Color(NSColor.controlBackgroundColor))
+        .frame(height: 52)
+        .background(LoSuite.Colors.backgroundPrimary)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(LoSuite.Colors.bordersDividers)
+                .frame(height: 1)
+        }
+    }
+
+    // MARK: - Workflow Steps
+
+    /// 0=import 1=separate 2=analyze 3=extract
+    private var currentPhaseIndex: Int {
+        switch analysisState {
+        case .idle:        return 0
+        case .separating:  return 1
+        case .analyzing:   return 2
+        case .complete, .error: return 3
+        }
+    }
+
+    @ViewBuilder
+    private func workflowStepPill(_ label: String, phaseIndex: Int) -> some View {
+        let isActive  = currentPhaseIndex >= phaseIndex
+        let isCurrent = currentPhaseIndex == phaseIndex
+        Text(label)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundColor(isActive ? LoSuite.Colors.textPrimary : LoSuite.Colors.disabled)
+            .tracking(0.8)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: LoSuite.Radius.sm)
+                    .fill(isCurrent
+                        ? LoSuite.Colors.accent.opacity(0.12)
+                        : (isActive ? LoSuite.Colors.elevatedSurface.opacity(0.5) : Color.clear))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: LoSuite.Radius.sm)
+                    .stroke(
+                        isCurrent ? LoSuite.Colors.accent.opacity(0.7)
+                            : (isActive ? LoSuite.Colors.bordersDividers : LoSuite.Colors.bordersDividers.opacity(0.3)),
+                        lineWidth: isCurrent ? 1.5 : 1
+                    )
+            )
+    }
+
+    @ViewBuilder
+    private func workflowArrow() -> some View {
+        Image(systemName: "chevron.right")
+            .font(.system(size: 8, weight: .medium))
+            .foregroundColor(LoSuite.Colors.disabled)
+            .padding(.horizontal, 1)
     }
 
     // MARK: - Actions
@@ -192,6 +343,37 @@ struct ContentView: View {
         Task {
             await analyzeFile(url: url)
         }
+    }
+
+    @MainActor
+    /// Called by ExportSheet when the user confirms an export format.
+    func runExport(format: ExportFormat) async -> ExportResult? {
+        guard !isExporting else { return nil }
+        isExporting = true
+        let exporter = SamplePackExporter(
+            samples: extractedSamples,
+            songName: audioURL?.deletingPathExtension().lastPathComponent ?? "Untitled",
+            tempo: detectedTempo,
+            format: format
+        )
+        let result = await exporter.export()
+        isExporting = false
+        if let result { showExportToast(result) }
+        return result
+    }
+
+    private func showExportToast(_ result: ExportResult) {
+        exportDismissTask?.cancel()
+        exportToast = result
+        exportDismissTask = Task {
+            try? await Task.sleep(for: .seconds(4))
+            if !Task.isCancelled { await MainActor.run { dismissExportToast() } }
+        }
+    }
+
+    private func dismissExportToast() {
+        exportDismissTask?.cancel()
+        exportToast = nil
     }
 
     @MainActor
@@ -332,14 +514,6 @@ struct ContentView: View {
         }
     }
 
-    private func exportSamples(_ samples: [ExtractedSample]) {
-        // TODO: Implement export
-        print("Exporting \(samples.count) samples")
-    }
-
-    private func exportAllSamples() {
-        exportSamples(extractedSamples)
-    }
 
     private func openInLoOptimizer() {
         // TODO: Implement LoOptimizer handoff

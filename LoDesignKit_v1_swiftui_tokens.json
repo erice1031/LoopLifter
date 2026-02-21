@@ -1,0 +1,372 @@
+{
+  "meta": {
+    "name": "LoDesignKit",
+    "version": "1.0.0",
+    "generated_at": "2026-02-20T18:59:56.352062",
+    "platform": "macOS",
+    "swiftui_target": "SwiftUI",
+    "notes": [
+      "Token-first theming for Lo Suite apps (LoopLifter + LoOptimizer).",
+      "Use SF Pro via system fonts; map styles to SwiftUI Font and Font.Weight.",
+      "Colors are hex; convert to SwiftUI Color via helper initializer (e.g., Color(hex:))."
+    ]
+  },
+  "tokens": {
+    "color": {
+      "base": {
+        "backgroundPrimary": "#0E1014",
+        "surfacePanel": "#151821",
+        "surfaceElevated": "#1C202B",
+        "divider": "#272C38",
+        "textPrimary": "#E6E8ED",
+        "textSecondary": "#9CA3AF",
+        "disabled": "#4B5563",
+        "white": "#FFFFFF",
+        "black": "#000000"
+      },
+      "accent": {
+        "looplifter": {
+          "accent": "#7C5CFF",
+          "glowRGBA": "rgba(124,92,255,0.25)"
+        },
+        "looptimizer": {
+          "accent": "#00E5FF",
+          "glowRGBA": "rgba(0,229,255,0.22)"
+        },
+        "deliver": {
+          "accent": "#F59E0B"
+        }
+      },
+      "semantic": {
+        "appBackground": "{color.base.backgroundPrimary}",
+        "panelBackground": "{color.base.surfacePanel}",
+        "panelElevated": "{color.base.surfaceElevated}",
+        "separator": "{color.base.divider}",
+        "primaryText": "{color.base.textPrimary}",
+        "secondaryText": "{color.base.textSecondary}",
+        "disabledText": "{color.base.disabled}",
+        "focusRing": "{color.base.textPrimary}"
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "ui": "SF Pro (System)",
+        "display": "SF Pro Display (System)",
+        "text": "SF Pro Text (System)",
+        "mono": "SF Mono (System)"
+      },
+      "styles": {
+        "h1Section": {
+          "sizePt": 22,
+          "weight": "semibold",
+          "design": "default"
+        },
+        "h2PanelTitle": {
+          "sizePt": 16,
+          "weight": "semibold",
+          "design": "default"
+        },
+        "body": {
+          "sizePt": 13,
+          "weight": "regular",
+          "design": "default"
+        },
+        "labelSmall": {
+          "sizePt": 12,
+          "weight": "medium",
+          "design": "default"
+        },
+        "monoData": {
+          "sizePt": 11,
+          "weight": "regular",
+          "design": "monospaced"
+        }
+      },
+      "tracking": {
+        "tightPct": -1,
+        "normalPct": 0,
+        "widePct": 2
+      },
+      "lineHeight": {
+        "tight": 1.15,
+        "normal": 1.25,
+        "relaxed": 1.35
+      }
+    },
+    "layout": {
+      "grid": {
+        "base": 8,
+        "panelPadding": 16,
+        "sectionGap": 24,
+        "controlGap": 12,
+        "labelToControlMin": 8
+      },
+      "radii": {
+        "sm": 8,
+        "md": 10,
+        "lg": 12,
+        "xl": 16
+      },
+      "borders": {
+        "hairline": 1,
+        "active": 2
+      }
+    },
+    "motion": {
+      "durationMs": {
+        "fast": 120,
+        "normal": 150,
+        "slow": 180
+      },
+      "curve": {
+        "default": "easeOut",
+        "rules": [
+          "No bounce",
+          "No exaggerated scaling",
+          "Glow/fade over flash"
+        ]
+      }
+    },
+    "effects": {
+      "shadow": {
+        "subtle": {
+          "opacity": 0.1,
+          "radius": 10,
+          "x": 0,
+          "y": 2
+        },
+        "lifted": {
+          "opacity": 0.12,
+          "radius": 14,
+          "x": 0,
+          "y": 6
+        }
+      },
+      "glow": {
+        "inner": {
+          "opacity": 0.2,
+          "radius": 40
+        },
+        "tileSelected": {
+          "opacity": 0.15,
+          "radius": 12
+        }
+      }
+    }
+  },
+  "components": {
+    "button": {
+      "primary": {
+        "cornerRadius": "{layout.radii.md}",
+        "padding": {
+          "vertical": [
+            10,
+            12
+          ],
+          "horizontal": [
+            18,
+            22
+          ]
+        },
+        "textStyle": "body",
+        "states": {
+          "default": {
+            "bg": "{accent}",
+            "fg": "{color.base.white}"
+          },
+          "hover": {
+            "bgBrightnessDeltaPct": 6,
+            "glowOpacityPct": 15
+          },
+          "pressed": {
+            "bgBrightnessDeltaPct": -8,
+            "scale": 1.0
+          }
+        }
+      },
+      "secondary": {
+        "cornerRadius": "{layout.radii.md}",
+        "padding": {
+          "vertical": [
+            10,
+            12
+          ],
+          "horizontal": [
+            18,
+            22
+          ]
+        },
+        "textStyle": "body",
+        "states": {
+          "default": {
+            "bg": "transparent",
+            "border": {
+              "width": "{layout.borders.hairline}",
+              "color": "{color.base.divider}"
+            },
+            "fg": "{color.base.textPrimary}"
+          },
+          "hover": {
+            "bg": "{color.base.surfaceElevated}"
+          },
+          "pressed": {
+            "bg": "{color.base.surfacePanel}"
+          }
+        }
+      },
+      "tertiary": {
+        "textStyle": "body",
+        "states": {
+          "default": {
+            "bg": "transparent",
+            "fg": "{accent}"
+          },
+          "hover": {
+            "underline": true,
+            "transitionMs": "{motion.durationMs.fast}"
+          }
+        }
+      }
+    },
+    "control": {
+      "knob": {
+        "sizes": {
+          "sm": 28,
+          "md": 36,
+          "lg": 48
+        },
+        "track": {
+          "stroke": 2,
+          "inactive": "{color.base.divider}",
+          "active": "{accent}"
+        },
+        "centerCap": {
+          "fill": "{color.base.surfacePanel}"
+        },
+        "indicator": {
+          "width": 2,
+          "color": "{color.base.white}"
+        },
+        "readout": {
+          "textStyle": "monoData",
+          "placement": "below"
+        },
+        "rules": [
+          "No chrome gloss",
+          "No 3D shading"
+        ]
+      },
+      "slider": {
+        "orientation": "horizontal",
+        "trackHeight": 4,
+        "inactive": "{color.base.divider}",
+        "active": "{accent}",
+        "handle": {
+          "diameter": 12,
+          "hoverDiameter": 14,
+          "shadow": "subtle"
+        }
+      }
+    },
+    "tile": {
+      "extractedAsset": {
+        "size": {
+          "width": 160,
+          "height": 110
+        },
+        "cornerRadius": "{layout.radii.sm}",
+        "bg": "{color.base.surfacePanel}",
+        "border": {
+          "width": "{layout.borders.hairline}",
+          "color": "{color.base.divider}"
+        },
+        "content": {
+          "top": "miniWaveform",
+          "middle": "title",
+          "bottom": [
+            "bpm",
+            "key",
+            "confidence"
+          ]
+        },
+        "states": {
+          "hover": {
+            "liftPx": -1,
+            "borderLighten": true
+          },
+          "selected": {
+            "bg": "{color.base.surfaceElevated}",
+            "borderColor": "{accent}",
+            "glow": "tileSelected"
+          }
+        }
+      }
+    },
+    "panel": {
+      "default": {
+        "cornerRadius": "{layout.radii.lg}",
+        "padding": "{layout.grid.panelPadding}",
+        "bg": "{color.base.surfacePanel}",
+        "headerBg": "#141821",
+        "divider": {
+          "width": "{layout.borders.hairline}",
+          "color": "{color.base.divider}"
+        },
+        "rules": [
+          "Prefer tonal separation over heavy shadows"
+        ]
+      }
+    }
+  },
+  "themes": {
+    "looplifter": {
+      "id": "looplifter.darkstudio",
+      "accent": "{tokens.color.accent.looplifter.accent}",
+      "description": "Deconstruct layer: analytical UI emphasis"
+    },
+    "looptimizer": {
+      "id": "looptimizer.darkstudio",
+      "accent": "{tokens.color.accent.looptimizer.accent}",
+      "description": "Design layer: instrument UI emphasis"
+    }
+  },
+  "swiftui_mapping_hints": {
+    "color": {
+      "initializer": "Color(hex: \"#RRGGBB\")",
+      "semanticUsage": [
+        "Backgrounds: appBackground/panelBackground",
+        "Dividers: separator",
+        "Text: primaryText/secondaryText"
+      ]
+    },
+    "typography": {
+      "systemFonts": [
+        {
+          "token": "h1Section",
+          "swiftui": "Font.system(size: 22, weight: .semibold)"
+        },
+        {
+          "token": "h2PanelTitle",
+          "swiftui": "Font.system(size: 16, weight: .semibold)"
+        },
+        {
+          "token": "body",
+          "swiftui": "Font.system(size: 13, weight: .regular)"
+        },
+        {
+          "token": "labelSmall",
+          "swiftui": "Font.system(size: 12, weight: .medium)"
+        },
+        {
+          "token": "monoData",
+          "swiftui": "Font.system(size: 11, weight: .regular, design: .monospaced)"
+        }
+      ]
+    },
+    "animation": {
+      "fast": "Animation.easeOut(duration: 0.12)",
+      "normal": "Animation.easeOut(duration: 0.15)",
+      "slow": "Animation.easeOut(duration: 0.18)"
+    }
+  }
+}

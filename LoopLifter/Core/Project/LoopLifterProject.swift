@@ -41,6 +41,7 @@ struct LoopLifterProject: Codable {
         var confidence: Double
         var tempo: Double
         var nudgeOffset: TimeInterval
+        var labels: [String]  // User-defined labels
 
         init(from sample: ExtractedSample) {
             self.id = sample.id
@@ -54,6 +55,7 @@ struct LoopLifterProject: Codable {
             self.confidence = sample.confidence
             self.tempo = sample.tempo
             self.nudgeOffset = sample.nudgeOffset
+            self.labels = sample.labels
         }
 
         func toExtractedSample(audioURL: URL?) -> ExtractedSample {
@@ -71,6 +73,7 @@ struct LoopLifterProject: Codable {
             sample.tempo = tempo
             sample.nudgeOffset = nudgeOffset
             sample.audioURL = audioURL
+            sample.labels = labels
             return sample
         }
     }

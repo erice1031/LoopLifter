@@ -29,6 +29,9 @@ struct ExtractedSample: Identifiable, Hashable {
     // Export selection
     var isSelected: Bool = true
 
+    // User-defined labels/tags (e.g., "snare", "kick", "open hh")
+    var labels: [String] = []
+
     // Computed effective times (with nudge applied)
     var effectiveStartTime: TimeInterval {
         startTime + nudgeOffset
@@ -65,6 +68,7 @@ struct ExtractedSample: Identifiable, Hashable {
         copy.tempo = tempo
         copy.nudgeOffset = nudgeOffset
         copy.isSelected = isSelected
+        copy.labels = labels
         return copy
     }
 
@@ -157,5 +161,44 @@ enum NudgeGrid: String, CaseIterable {
 
     var displayName: String {
         rawValue
+    }
+}
+
+/// Predefined label suggestions by stem type
+enum LabelSuggestions {
+    static let drums = [
+        "kick", "snare", "hat", "open hh", "closed hh",
+        "tom", "floor tom", "ride", "crash", "cymbal",
+        "rim", "stick", "clap", "perc", "shaker",
+        "fill", "roll", "break", "intro", "outro"
+    ]
+
+    static let bass = [
+        "root", "sub", "pluck", "slide", "slap",
+        "muted", "staccato", "sustained", "octave",
+        "riff", "groove", "walking", "synth"
+    ]
+
+    static let vocals = [
+        "verse", "chorus", "hook", "bridge", "intro",
+        "ad-lib", "yeah", "uh", "oh", "hey",
+        "chop", "stab", "phrase", "word", "breath",
+        "harmony", "lead", "backing"
+    ]
+
+    static let other = [
+        "chord", "stab", "pad", "lead", "arp",
+        "riff", "melody", "fx", "sweep", "riser",
+        "hit", "texture", "ambient", "strings", "keys",
+        "guitar", "synth", "brass", "wind"
+    ]
+
+    static func suggestions(for stemType: StemType) -> [String] {
+        switch stemType {
+        case .drums: return drums
+        case .bass: return bass
+        case .vocals: return vocals
+        case .other: return other
+        }
     }
 }
