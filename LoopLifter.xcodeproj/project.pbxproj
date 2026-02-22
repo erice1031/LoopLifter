@@ -27,6 +27,8 @@
 		ADFDA4E42F43B21900A9FF78 /* StemCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADFDA4E12F43B21900A9FF78 /* StemCache.swift */; };
 		B10000010000000000000001 /* SamplePackExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000001 /* SamplePackExporter.swift */; };
 		B10000010000000000000002 /* ExportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000002 /* ExportSheet.swift */; };
+		C10000010000000000000001 /* FeatureExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000001 /* FeatureExtractor.swift */; };
+		C10000010000000000000002 /* PitchDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000002 /* PitchDetector.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -53,6 +55,8 @@
 		ADFDA4E12F43B21900A9FF78 /* StemCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StemCache.swift; path = Cache/StemCache.swift; sourceTree = "<group>"; };
 		B20000010000000000000001 /* SamplePackExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SamplePackExporter.swift; sourceTree = "<group>"; };
 		B20000010000000000000002 /* ExportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportSheet.swift; sourceTree = "<group>"; };
+		C20000010000000000000001 /* FeatureExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureExtractor.swift; sourceTree = "<group>"; };
+		C20000010000000000000002 /* PitchDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PitchDetector.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -142,6 +146,8 @@
 				A20000010000000000000008 /* SelfSimilarityAnalyzer.swift */,
 				A20000010000000000000009 /* NoveltyDetector.swift */,
 				A20000010000000000000010 /* HitIsolator.swift */,
+				C20000010000000000000001 /* FeatureExtractor.swift */,
+				C20000010000000000000002 /* PitchDetector.swift */,
 			);
 			path = Analysis;
 			sourceTree = "<group>";
@@ -271,6 +277,8 @@
 				A10000010000000000000016 /* AudioPreviewPlayer.swift in Sources */,
 				B10000010000000000000001 /* SamplePackExporter.swift in Sources */,
 				B10000010000000000000002 /* ExportSheet.swift in Sources */,
+				C10000010000000000000001 /* FeatureExtractor.swift in Sources */,
+				C10000010000000000000002 /* PitchDetector.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
