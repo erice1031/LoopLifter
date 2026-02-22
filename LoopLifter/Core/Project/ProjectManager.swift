@@ -25,11 +25,6 @@ class ProjectManager {
     /// File extension for LoopLifter projects
     static let fileExtension = "looplifter"
 
-    /// UTType for LoopLifter projects
-    static var projectUTType: UTType {
-        UTType(exportedAs: "com.looplifter.project", conformingTo: .json)
-    }
-
     private init() {}
 
     // MARK: - Save Operations
