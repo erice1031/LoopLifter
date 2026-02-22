@@ -242,6 +242,14 @@ struct ContentView: View {
                     .foregroundColor(LoSuite.Colors.textSecondary)
                     .help("Save Project")
 
+                    Button { saveProjectAs() } label: {
+                        Image(systemName: "square.and.arrow.down.on.square")
+                            .font(.system(size: 14))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(LoSuite.Colors.textSecondary)
+                    .help("Save As…")
+
                     Button {
                         analysisState = .idle
                         extractedSamples = []
@@ -666,19 +674,14 @@ struct ContentView: View {
 
     private func saveProject() {
         guard let url = audioURL else { return }
-
-        // Get tempo from first sample or use default
         let tempo = extractedSamples.first?.tempo ?? detectedTempo
+        _ = ProjectManager.shared.save(samples: extractedSamples, audioURL: url, tempo: tempo)
+    }
 
-        let success = ProjectManager.shared.save(
-            samples: extractedSamples,
-            audioURL: url,
-            tempo: tempo
-        )
-
-        if success {
-            print("✅ Project saved successfully")
-        }
+    private func saveProjectAs() {
+        guard let url = audioURL else { return }
+        let tempo = extractedSamples.first?.tempo ?? detectedTempo
+        _ = ProjectManager.shared.saveAs(samples: extractedSamples, audioURL: url, tempo: tempo)
     }
 
     private func openProject() {
