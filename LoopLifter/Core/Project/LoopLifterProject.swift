@@ -43,6 +43,16 @@ struct LoopLifterProject: Codable {
         var nudgeOffset: TimeInterval
         var labels: [String]  // User-defined labels
 
+        // Pitch analysis — optional so old project files load without errors
+        var detectedPitch: Double?
+        var pitchMidiNote: Int?
+        var pitchNoteName: String?
+        var pitchCents: Double?
+        var pitchConfidence: Float?
+
+        // Drum type classification — optional so old files decode as nil
+        var drumType: String?
+
         init(from sample: ExtractedSample) {
             self.id = sample.id
             self.name = sample.name
@@ -54,8 +64,14 @@ struct LoopLifterProject: Codable {
             self.barLength = sample.barLength
             self.confidence = sample.confidence
             self.tempo = sample.tempo
-            self.nudgeOffset = sample.nudgeOffset
-            self.labels = sample.labels
+            self.nudgeOffset     = sample.nudgeOffset
+            self.labels          = sample.labels
+            self.detectedPitch   = sample.detectedPitch
+            self.pitchMidiNote   = sample.pitchMidiNote
+            self.pitchNoteName   = sample.pitchNoteName
+            self.pitchCents      = sample.pitchCents
+            self.pitchConfidence = sample.pitchConfidence
+            self.drumType        = sample.drumType?.rawValue
         }
 
         func toExtractedSample(audioURL: URL?) -> ExtractedSample {
@@ -72,8 +88,14 @@ struct LoopLifterProject: Codable {
             sample.endTime = endTime
             sample.tempo = tempo
             sample.nudgeOffset = nudgeOffset
-            sample.audioURL = audioURL
-            sample.labels = labels
+            sample.audioURL      = audioURL
+            sample.labels        = labels
+            sample.detectedPitch   = detectedPitch
+            sample.pitchMidiNote   = pitchMidiNote
+            sample.pitchNoteName   = pitchNoteName
+            sample.pitchCents      = pitchCents ?? 0
+            sample.pitchConfidence = pitchConfidence ?? 0
+            sample.drumType        = drumType.flatMap { DrumHitType(rawValue: $0) }
             return sample
         }
     }

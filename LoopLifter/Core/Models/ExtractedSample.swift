@@ -32,6 +32,16 @@ struct ExtractedSample: Identifiable, Hashable {
     // User-defined labels/tags (e.g., "snare", "kick", "open hh")
     var labels: [String] = []
 
+    // Pitch analysis (nil = atonal / not detected)
+    var detectedPitch: Double? = nil    // fundamental frequency in Hz
+    var pitchMidiNote: Int? = nil       // nearest MIDI note number
+    var pitchNoteName: String? = nil    // e.g. "A2", "D#3"
+    var pitchCents: Double = 0          // deviation from exact pitch in cents
+    var pitchConfidence: Float = 0      // 0.0–1.0
+
+    // Drum type classification (non-nil only for drum stem hits)
+    var drumType: DrumHitType? = nil
+
     // Computed effective times (with nudge applied)
     var effectiveStartTime: TimeInterval {
         startTime + nudgeOffset
@@ -69,6 +79,12 @@ struct ExtractedSample: Identifiable, Hashable {
         copy.nudgeOffset = nudgeOffset
         copy.isSelected = isSelected
         copy.labels = labels
+        copy.detectedPitch   = detectedPitch
+        copy.pitchMidiNote   = pitchMidiNote
+        copy.pitchNoteName   = pitchNoteName
+        copy.pitchCents      = pitchCents
+        copy.pitchConfidence = pitchConfidence
+        copy.drumType        = drumType
         return copy
     }
 

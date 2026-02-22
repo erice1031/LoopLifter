@@ -2013,6 +2013,53 @@ struct SampleDetailPanel: View {
                             }
                         }
                     }
+
+                    // Pitch — only shown when confident enough (tonal samples)
+                    if let noteName = sample.pitchNoteName, sample.pitchConfidence > 0.4 {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Pitch").detailLabel()
+                            HStack(spacing: 0) {
+                                // Note name — the key datum for producers
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(noteName)
+                                        .font(.system(size: 22, weight: .bold, design: .monospaced))
+                                        .foregroundColor(accentColor)
+                                    Text("Note")
+                                        .font(.system(size: 9))
+                                        .foregroundColor(LoSuite.Colors.textSecondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                                // Frequency in Hz
+                                VStack(alignment: .center, spacing: 2) {
+                                    if let hz = sample.detectedPitch {
+                                        Text(String(format: "%.1f Hz", hz))
+                                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                            .foregroundColor(LoSuite.Colors.textPrimary)
+                                    }
+                                    Text("Freq")
+                                        .font(.system(size: 9))
+                                        .foregroundColor(LoSuite.Colors.textSecondary)
+                                }
+                                .frame(maxWidth: .infinity)
+
+                                // Cents offset (orange when noticeably detuned)
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    let cents = sample.pitchCents
+                                    Text(String(format: "%+.0f¢", cents))
+                                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                        .foregroundColor(abs(cents) > 20 ? .orange : LoSuite.Colors.textPrimary)
+                                    Text("Tune")
+                                        .font(.system(size: 9))
+                                        .foregroundColor(LoSuite.Colors.textSecondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                            }
+                            .padding(10)
+                            .background(LoSuite.Colors.elevatedSurface)
+                            .cornerRadius(LoSuite.Radius.sm)
+                        }
+                    }
                 }
                 .padding(LoSuite.Spacing.md)
             }

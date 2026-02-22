@@ -43,9 +43,9 @@ enum ExportFormat: String, CaseIterable, Identifiable {
         case .appleLoops:
             return "AIFF files organized for Logic Pro's Loop Browser. Includes a README with one-click import instructions and tempo/key metadata."
         case .abletonDrumRack:
-            return "Drum Rack preset (.adg) with all samples mapped to pads starting at C1. Drag into Live's Session or Arrangement view."
+            return "Drum Rack preset (.adg) with drum hits mapped to GM positions (kick C1, snare D1, hat F#1). Drag into Live's Session or Arrangement view."
         case .exs24:
-            return "Logic Sampler instrument (.exs) with each sample mapped chromatically from C3. Open directly in Logic's built-in Sampler."
+            return "Logic Sampler instrument (.exs) with melodic samples mapped to their detected pitch. Open directly in Logic's built-in Sampler."
         case .plainAIFF:
             return "Standard AIFF files in a named project folder. Compatible with any DAW, sampler, or sample manager."
         }
@@ -162,14 +162,40 @@ struct SamplePackExporter {
     // MARK: - Apple Loops
 
     private func generateAppleLoopsReadme(in folder: URL) throws {
-        let bpm = Int(tempo.rounded())
+        let bpm  = Int(tempo.rounded())
         let date = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .short)
+
+        // Detect predominant key from pitched non-drum samples
+        let pitchedClasses = samples.compactMap { s -> String? in
+            guard s.stemType != .drums, let name = s.pitchNoteName else { return nil }
+            return String(name.prefix(while: { !$0.isNumber && $0 != "-" }))
+        }
+        let keyCounts   = Dictionary(pitchedClasses.map { ($0, 1) }, uniquingKeysWith: +)
+        let detectedKey = keyCounts.max(by: { $0.value < $1.value })?.key
+
+        // Per-sample pitch lines
+        let pitchedSamples = samples.filter { $0.pitchNoteName != nil }
+        var pitchLines = ""
+        if !pitchedSamples.isEmpty {
+            pitchLines = "\n── DETECTED PITCHES ────────────────────────────────────────────────\n"
+            for s in pitchedSamples {
+                let note  = s.pitchNoteName ?? "?"
+                let hz    = s.detectedPitch.map { String(format: "%.1f Hz", $0) } ?? ""
+                let cents = abs(s.pitchCents) > 5
+                          ? String(format: " (%+.0f¢)", s.pitchCents)
+                          : ""
+                pitchLines += "  \(s.name.padding(toLength: 28, withPad: " ", startingAt: 0)) \(note)  \(hz)\(cents)\n"
+            }
+        }
+
+        let keyLine = detectedKey.map { "Key:   \($0)\n" } ?? ""
+
         let text = """
         ── \(safeSongName) · LoopLifter Sample Pack ──────────────────────────
         Tempo: \(bpm) BPM
-        Exported: \(date)
+        \(keyLine)Exported: \(date)
         Files: \(samples.count) sample\(samples.count == 1 ? "" : "s") (AIFF)
-
+        \(pitchLines)
         ── ADD TO LOGIC PRO LOOP BROWSER ───────────────────────────────────
         1.  Open Logic Pro.
         2.  Press ⌘⎇L (or View → Show Loop Browser).
@@ -193,14 +219,45 @@ struct SamplePackExporter {
 
     // MARK: - Ableton Drum Rack (.adg)
 
+    /// Map a DrumHitType + occurrence index to the standard GM drum MIDI note.
+    /// Drums stay in the 35–68 range; a second kick goes to 35, extra hats spread to 44/46, etc.
+    private static func gmNote(for type: DrumHitType, occurrence: Int) -> Int {
+        let slots: [Int]
+        switch type {
+        case .kick:       slots = [36, 35]
+        case .snare:      slots = [38, 40]
+        case .hihat:      slots = [42, 44, 46]
+        case .tom:        slots = [45, 47, 48, 50, 43, 41]
+        case .clap:       slots = [39]
+        case .rim:        slots = [37]
+        case .cymbal:     slots = [49, 51, 55, 57, 59]
+        case .percussion: slots = [54, 56, 58, 60, 62, 64, 65, 66, 67, 68]
+        }
+        return occurrence < slots.count ? slots[occurrence] : slots.last!
+    }
+
     private func generateAbletonDrumRack(in folder: URL,
                                           files: [(ExtractedSample, URL)]) throws {
         let padSamples = Array(files.prefix(32))
-        var pads = ""
-        var atomId = 10
+        var pads       = ""
+        var atomId     = 10
+
+        // Track how many of each drum type have been assigned (for GM slot selection)
+        var typeCounts:    [DrumHitType: Int] = [:]
+        var fallbackIndex: Int = 0   // non-drum samples start at C4 (72) to avoid GM range
 
         for (index, (sample, fileURL)) in padSamples.enumerated() {
-            let midiNote = 36 + index   // C1 = 36
+            let midiNote: Int
+            if let drumType = sample.drumType {
+                let occurrence = typeCounts[drumType, default: 0]
+                typeCounts[drumType] = occurrence + 1
+                midiNote = Self.gmNote(for: drumType, occurrence: occurrence)
+            } else {
+                // Non-drum sample: place above GM drum territory
+                midiNote = 72 + fallbackIndex
+                fallbackIndex += 1
+            }
+
             let name     = xe(sample.name)
             let filename = xe(fileURL.lastPathComponent)
             let n = atomId; atomId += 8
@@ -373,11 +430,26 @@ struct SamplePackExporter {
     // MARK: - EXS24 / Logic Sampler (.exs)
 
     private func generateEXS24(in folder: URL, files: [(ExtractedSample, URL)]) throws {
-        var zones = ""
-        let rootNote = 60  // C3 — map each sample to its own key
+        var zones        = ""
+        let fallbackRoot = 60  // C3 fallback for samples with no detected pitch
+
+        // Drums use sequential GM-range keys; melodic samples use detected pitch
+        var drumIndex = 0
 
         for (index, (sample, fileURL)) in files.enumerated() {
-            let note     = rootNote + index
+            // Choose root key:
+            // 1. Melodic (non-drum) sample with known pitch → use it directly
+            // 2. Drum sample → sequential from 36 (C1)
+            // 3. Anything else → sequential from C3
+            let note: Int
+            if let midi = sample.pitchMidiNote, sample.stemType != .drums {
+                note = midi
+            } else if sample.stemType == .drums {
+                note = 36 + drumIndex
+                drumIndex += 1
+            } else {
+                note = fallbackRoot + index
+            }
             let name     = xe(sample.name)
             let path     = xe(fileURL.path)
             let filename = xe(fileURL.lastPathComponent)

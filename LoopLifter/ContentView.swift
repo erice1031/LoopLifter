@@ -446,53 +446,161 @@ struct ContentView: View {
                 // Filter onsets to only those after energy onset
                 let sortedOnsets = onsets.sorted().filter { $0 >= energyOnset }
                 print("   Onsets after energy: \(sortedOnsets.count), first 8: \(sortedOnsets.prefix(8).map { String(format: "%.2f", $0) })")
-                for (hitIndex, onset) in sortedOnsets.prefix(8).enumerated() {
-                    // Calculate hit duration (until next onset or max 500ms)
-                    let nextOnset: Double = hitIndex + 1 < sortedOnsets.count ? sortedOnsets[hitIndex + 1] : onset + 0.5
-                    let hitDuration: Double = Swift.min(nextOnset - onset, 0.5)
+                let secondsPerBeat = 60.0 / tempo
+                let secondsPerBar  = secondsPerBeat * 4
 
-                    var sample = ExtractedSample(
-                        name: "\(stemType.displayName) Hit \(hitIndex + 1)",
-                        category: .hit,
-                        stemType: stemType,
-                        duration: hitDuration,
-                        barLength: nil,
-                        confidence: 0.8
-                    )
-                    sample.startTime = onset
-                    sample.endTime = onset + hitDuration
-                    sample.audioURL = stemURL
-                    sample.tempo = tempo
-                    allSamples.append(sample)
+                // ── Feature extraction (bar-aligned for SelfSimilarityAnalyzer) ─────
+                let barOnsets: [TimeInterval] = Swift.stride(from: 0, to: sortedOnsets.count, by: 4)
+                    .map { sortedOnsets[$0] }
+
+                let beatFeatures: [[Float]]
+                if barOnsets.count >= 2,
+                   let features = try? await FeatureExtractor.extractBeatFeatures(
+                       audioURL: stemURL, beatOnsets: barOnsets) {
+                    beatFeatures = features
+                } else {
+                    beatFeatures = []
+                }
+
+                // ── Self-similarity pattern detection ─────────────────────────────
+                var detectedPatterns: [DetectedPattern] = []
+                if beatFeatures.count >= 4 {
+                    let matrix = SelfSimilarityAnalyzer.computeSimilarityMatrix(features: beatFeatures)
+                    detectedPatterns = SelfSimilarityAnalyzer.findRepeatingPatterns(matrix: matrix)
+                    print("   Patterns: \(detectedPatterns.count) found, best: \(detectedPatterns.first.map { "\($0.lengthSegments)-bar ×\($0.repeatCount)" } ?? "none")")
+                }
+
+                // ── Novelty / fill detection (drums only) ─────────────────────────
+                var noveltyPeaks: [Int] = []
+                if stemType == .drums, beatFeatures.count > 8 {
+                    let curve = NoveltyDetector.computeNoveltyCurve(features: beatFeatures)
+                    noveltyPeaks = NoveltyDetector.findNoveltyPeaks(noveltyCurve: curve)
+                }
+
+                // ── Drum hit classification ───────────────────────────────────────
+                var classifiedHits: [ClassifiedHit] = []
+                if stemType == .drums {
+                    let isolatedHits: [IsolatedHit] = sortedOnsets.prefix(8).enumerated().map { idx, onset in
+                        let next = idx + 1 < sortedOnsets.count ? sortedOnsets[idx + 1] : onset + 0.5
+                        let dur  = Swift.min(next - onset, 0.5)
+                        let gapB = idx == 0 ? max(0.01, onset - energyOnset) : onset - sortedOnsets[idx - 1]
+                        return IsolatedHit(startTime: onset, duration: dur, gapBefore: gapB, gapAfter: next - onset)
+                    }
+                    if let result = try? await HitIsolator.classifyDrumHits(audioURL: stemURL, hits: isolatedHits) {
+                        classifiedHits = result
+                        print("   Drum hits: \(classifiedHits.map { $0.drumType.rawValue }.joined(separator: ", "))")
+                    }
+                }
+
+                // ── Hit samples ───────────────────────────────────────────────────
+                if stemType == .drums && !classifiedHits.isEmpty {
+                    for (idx, classified) in classifiedHits.enumerated() {
+                        var sample = ExtractedSample(
+                            name: "\(classified.drumType.rawValue) \(idx + 1)",
+                            category: .hit,
+                            stemType: stemType,
+                            duration: classified.hit.duration,
+                            barLength: nil,
+                            confidence: Double(classified.confidence)
+                        )
+                        sample.startTime = classified.hit.startTime
+                        sample.endTime   = classified.hit.startTime + classified.hit.duration
+                        sample.audioURL  = stemURL
+                        sample.tempo     = tempo
+                        sample.drumType  = classified.drumType
+                        sample.labels    = [classified.drumType.rawValue.lowercased()]
+                        allSamples.append(sample)
+                    }
+                } else {
+                    for (hitIndex, onset) in sortedOnsets.prefix(8).enumerated() {
+                        let nextOnset   = hitIndex + 1 < sortedOnsets.count ? sortedOnsets[hitIndex + 1] : onset + 0.5
+                        let hitDuration = Swift.min(nextOnset - onset, 0.5)
+                        var sample = ExtractedSample(
+                            name: "\(stemType.displayName) Hit \(hitIndex + 1)",
+                            category: .hit,
+                            stemType: stemType,
+                            duration: hitDuration,
+                            barLength: nil,
+                            confidence: 0.8
+                        )
+                        sample.startTime = onset
+                        sample.endTime   = onset + hitDuration
+                        sample.audioURL  = stemURL
+                        sample.tempo     = tempo
+                        allSamples.append(sample)
+                    }
                 }
                 print("   Created \(min(8, sortedOnsets.count)) hits for \(stemURL.lastPathComponent)")
 
-                // Create loop samples based on onset density
-                // Start loop from energy onset (where stem actually kicks in)
+                // ── Loop samples ──────────────────────────────────────────────────
                 if sortedOnsets.count > 4 {
-                    let secondsPerBeat = 60.0 / tempo
-                    let secondsPerBar = secondsPerBeat * 4
-
-                    // Quantize energy onset to nearest beat for cleaner loop start
                     let quantizedStart = round(energyOnset / secondsPerBeat) * secondsPerBeat
 
-                    // Try to find 2-bar loop starting from where the stem kicks in
-                    let twoBarDuration = secondsPerBar * 2
-                    if duration >= quantizedStart + twoBarDuration {
+                    if let best = detectedPatterns.first,
+                       best.startSegment < barOnsets.count,
+                       best.repeatCount >= 2 {
+                        let loopStart    = barOnsets[best.startSegment]
+                        let loopDuration = Double(best.lengthSegments) * secondsPerBar
+                        if duration >= loopStart + loopDuration {
+                            var sample = ExtractedSample(
+                                name: "\(stemType.displayName) \(best.lengthSegments)-Bar Loop",
+                                category: .loop,
+                                stemType: stemType,
+                                duration: loopDuration,
+                                barLength: best.lengthSegments,
+                                confidence: Double(min(1.0, Float(best.repeatCount) / 8.0))
+                            )
+                            sample.startTime = loopStart
+                            sample.endTime   = loopStart + loopDuration
+                            sample.audioURL  = stemURL
+                            sample.tempo     = tempo
+                            allSamples.append(sample)
+                            print("   Loop (pattern): \(best.lengthSegments) bars ×\(best.repeatCount) from \(String(format: "%.2f", loopStart))s")
+                        }
+                    } else {
+                        let twoBarDuration = secondsPerBar * 2
+                        if duration >= quantizedStart + twoBarDuration {
+                            var sample = ExtractedSample(
+                                name: "\(stemType.displayName) Loop",
+                                category: .loop,
+                                stemType: stemType,
+                                duration: twoBarDuration,
+                                barLength: 2,
+                                confidence: 0.85
+                            )
+                            sample.startTime = quantizedStart
+                            sample.endTime   = quantizedStart + twoBarDuration
+                            sample.audioURL  = stemURL
+                            sample.tempo     = tempo
+                            allSamples.append(sample)
+                            print("   Loop (fallback): \(String(format: "%.2f", quantizedStart))s - \(String(format: "%.2f", quantizedStart + twoBarDuration))s")
+                        }
+                    }
+                }
+
+                // ── Fill samples (drums only, max 2) ──────────────────────────────
+                if stemType == .drums {
+                    var fillCount = 0
+                    for peakBarIdx in noveltyPeaks.prefix(2) {
+                        let fillBarIdx = max(0, peakBarIdx - 1)
+                        guard fillBarIdx < barOnsets.count else { continue }
+                        let fillStart = barOnsets[fillBarIdx]
+                        guard duration >= fillStart + secondsPerBar else { continue }
+                        fillCount += 1
                         var sample = ExtractedSample(
-                            name: "\(stemType.displayName) Loop",
-                            category: .loop,
+                            name: "Drums Fill \(fillCount)",
+                            category: .fill,
                             stemType: stemType,
-                            duration: twoBarDuration,
-                            barLength: 2,
-                            confidence: 0.85
+                            duration: secondsPerBar,
+                            barLength: 1,
+                            confidence: 0.75
                         )
-                        sample.startTime = quantizedStart
-                        sample.endTime = quantizedStart + twoBarDuration
-                        sample.audioURL = stemURL
-                        sample.tempo = tempo
+                        sample.startTime = fillStart
+                        sample.endTime   = fillStart + secondsPerBar
+                        sample.audioURL  = stemURL
+                        sample.tempo     = tempo
                         allSamples.append(sample)
-                        print("   Loop: \(String(format: "%.2f", quantizedStart))s - \(String(format: "%.2f", quantizedStart + twoBarDuration))s")
+                        print("   Fill \(fillCount) at bar \(fillBarIdx): \(String(format: "%.2f", fillStart))s")
                     }
                 }
 
@@ -501,6 +609,40 @@ struct ContentView: View {
                     progress: Double(index + 1) / Double(stemTypes.count)
                 )
             }
+
+            // Pitch detection pass — runs after all samples are created
+            // try? means pitch failure never blocks analysis
+            for i in allSamples.indices {
+                guard let url = allSamples[i].audioURL else { continue }
+                if let result = try? await PitchDetector.detect(
+                    audioURL: url,
+                    startTime: allSamples[i].startTime,
+                    duration: allSamples[i].duration
+                ) {
+                    allSamples[i].detectedPitch   = result.frequency
+                    allSamples[i].pitchMidiNote   = result.midiNote
+                    allSamples[i].pitchNoteName   = result.noteName
+                    allSamples[i].pitchCents      = result.centsOffset
+                    allSamples[i].pitchConfidence = result.confidence
+                    let centsStr = abs(result.centsOffset) > 1
+                                 ? String(format: " %+.0f¢", result.centsOffset) : ""
+                    print("   🎵 \(allSamples[i].name): \(result.noteName) \(String(format: "%.1f", result.frequency))Hz\(centsStr) (conf \(Int(result.confidence * 100))%)")
+                }
+            }
+
+            // ── Extraction summary ────────────────────────────────────────────
+            print("\n📦 Extraction complete: \(allSamples.count) samples")
+            let byStem = Dictionary(grouping: allSamples, by: { $0.stemType })
+            for stemType in StemType.allCases {
+                guard let stemSamples = byStem[stemType], !stemSamples.isEmpty else { continue }
+                let names = stemSamples.map { s -> String in
+                    var label = s.name
+                    if let note = s.pitchNoteName { label += " [\(note)]" }
+                    return label
+                }.joined(separator: ", ")
+                print("   \(stemType.displayName): \(names)")
+            }
+            print("")
 
             extractedSamples = allSamples
             // Store detected tempo from first stem with valid tempo
