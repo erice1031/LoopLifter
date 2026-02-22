@@ -7,7 +7,6 @@
 
 import Foundation
 import AppKit
-import UniformTypeIdentifiers
 
 /// Manages LoopLifter project files
 @Observable
@@ -49,16 +48,18 @@ class ProjectManager {
         let panel = NSSavePanel()
         panel.title = "Save LoopLifter Project"
         panel.nameFieldLabel = "Project Name:"
-        panel.nameFieldStringValue = audioURL.deletingPathExtension().lastPathComponent
-        panel.allowedContentTypes = [UTType.json]  // Use JSON until we register custom UTType
-        panel.allowsOtherFileTypes = false
+        panel.nameFieldStringValue = audioURL.deletingPathExtension().lastPathComponent + ".\(Self.fileExtension)"
+        panel.allowedContentTypes = []
+        panel.allowsOtherFileTypes = true
         panel.canCreateDirectories = true
 
-        // Add .looplifter extension
-        panel.nameFieldStringValue += ".\(Self.fileExtension)"
-
-        guard panel.runModal() == .OK, let url = panel.url else {
+        guard panel.runModal() == .OK, var url = panel.url else {
             return false
+        }
+
+        // Ensure the file always ends with .looplifter regardless of what the panel returns
+        if url.pathExtension.lowercased() != Self.fileExtension {
+            url = url.appendingPathExtension(Self.fileExtension)
         }
 
         return saveToURL(url, samples: samples, audioURL: audioURL, tempo: tempo)
@@ -94,7 +95,8 @@ class ProjectManager {
     func open() -> (samples: [ExtractedSample], audioURL: URL, tempo: Double)? {
         let panel = NSOpenPanel()
         panel.title = "Open LoopLifter Project"
-        panel.allowedContentTypes = [UTType.json]
+        panel.allowedContentTypes = []
+        panel.allowsOtherFileTypes = true
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
